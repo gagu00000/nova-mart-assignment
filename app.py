@@ -681,59 +681,6 @@ def sankey_journey():
             st.error(f"Error processing sequential journey data: {str(e)}")
             st.write("Sample of data:")
             st.dataframe(df.head())
-            return
-    
-    # Fallback: Check for traditional source-target format
-    source_col = next((c for c in ['source', 'from', 'start'] if c in df.columns), None)
-    target_col = next((c for c in ['target', 'to', 'end'] if c in df.columns), None)
-    value_col = next((c for c in ['value', 'count', 'flow'] if c in df.columns), None)
-    
-    if not all([source_col, target_col, value_col]):
-        st.warning(f"⚠️ customer_journey.csv format not recognized.")
-        st.info("""
-        **Expected format (Option 1 - Sequential):**
-        - touchpoint_1, touchpoint_2, touchpoint_3, touchpoint_4, customer_count
-        
-        **Expected format (Option 2 - Source-Target):**
-        - source, target, value
-        
-        **Found columns:** {', '.join(df.columns.tolist())}
-        """)
-        st.write("Sample of your data:")
-        st.dataframe(df.head())
-        return
-    
-    # Process traditional source-target format
-    try:
-        all_nodes = list(set(df[source_col].tolist() + df[target_col].tolist()))
-        node_dict = {node: idx for idx, node in enumerate(all_nodes)}
-        
-        fig = go.Figure(data=[go.Sankey(
-            node=dict(
-                pad=15,
-                thickness=20,
-                line=dict(color="white", width=0.5),
-                label=all_nodes,
-                color=PALETTE[0]
-            ),
-            link=dict(
-                source=[node_dict[src] for src in df[source_col]],
-                target=[node_dict[tgt] for tgt in df[target_col]],
-                value=df[value_col].tolist(),
-                color='rgba(43, 140, 196, 0.3)'
-            )
-        )])
-        fig.update_layout(
-            title="Customer Journey Paths",
-            font_size=10,
-            height=600
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        st.info("💡 **Insight**: Visualizes multi-touchpoint customer paths and conversion flows.")
-    except Exception as e:
-        st.error(f"Error creating Sankey diagram: {str(e)}")
-        st.write("Sample of data:")
-        st.dataframe(df.head())
 
 def choropleth_map():
     """NEW: Choropleth map showing state-wise performance."""
@@ -791,7 +738,7 @@ def choropleth_map():
         st.plotly_chart(fig, use_container_width=True)
     else:
         # Final fallback: horizontal bar chart
-        st.info("📍 Latitude/longitude not available. Showing bar chart of top states.")
+        st.info("🔍 Latitude/longitude not available. Showing bar chart of top states.")
         bar = df.nlargest(15, metric)[['state', metric]].sort_values(metric, ascending=True)
         fig = px.bar(bar, x=metric, y='state', orientation='h',
                     title=f"Top 15 States by {metric.replace('_', ' ').title()}",
@@ -802,7 +749,7 @@ def choropleth_map():
     export_data(df, f"geographic_{metric}.csv")
 
 def bubble_map():
-    """Bubble map showing store performance by location - INDIA ONLY."""
+    """Bubble map showing store performance by location - Styled like Choropleth."""
     st.subheader("Store Performance (Bubble Map)")
     df = df_or_warn('geo')
     if df.empty:
@@ -815,58 +762,81 @@ def bubble_map():
         st.warning("geographic_data.csv needs latitude/longitude columns.")
         return
     
-    size_col = 'store_count' if 'store_count' in df.columns else 'total_customers'
-    color_col = 'customer_satisfaction' if 'customer_satisfaction' in df.columns else 'total_revenue'
+    # Metric selection matching choropleth
+    size_options = [c for c in ['store_count', 'total_customers', 'total_revenue'] if c in df.columns]
+    color_options = [c for c in ['customer_satisfaction', 'total_revenue', 'market_penetration', 'yoy_growth'] if c in df.columns]
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        size_metric = st.selectbox("Bubble Size", size_options, index=0, key="bubble_size")
+    with col2:
+        color_metric = st.selectbox("Bubble Color", color_options, index=0, key="bubble_color")
     
     animate = st.checkbox("🎬 Animate by State", value=False, key="bubble_animate")
     
+    # Create consistent hover data
+    hover_cols = {col: ':,.0f' for col in df.columns if col not in [lat_col, lon_col, 'state']}
+    hover_cols[lat_col] = False
+    hover_cols[lon_col] = False
+    
     if animate and 'state' in df.columns:
         fig = px.scatter_geo(
-            df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
+            df, 
+            lat=lat_col, 
+            lon=lon_col, 
+            size=size_metric, 
+            color=color_metric,
             hover_name='state',
-            title="Store Performance by Location (Animated)",
+            hover_data=hover_cols,
+            title=f"Store Performance: {size_metric.replace('_', ' ').title()} (Size) vs {color_metric.replace('_', ' ').title()} (Color) - Animated",
             animation_frame='state',
-            color_continuous_scale='Blues'
+            color_continuous_scale='Blues',  # Match choropleth
+            size_max=50
         )
         fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 800
     else:
         fig = px.scatter_geo(
-            df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
+            df, 
+            lat=lat_col, 
+            lon=lon_col, 
+            size=size_metric, 
+            color=color_metric,
             hover_name='state' if 'state' in df.columns else None,
-            title="Store Performance by Location - India",
-            color_continuous_scale='Blues'
+            hover_data=hover_cols,
+            title=f"Store Performance: {size_metric.replace('_', ' ').title()} (Size) vs {color_metric.replace('_', ' ').title()} (Color)",
+            color_continuous_scale='Blues',  # Match choropleth
+            size_max=50
         )
     
-    # FIXED: Zoom to India only with proper bounds
+    # Apply identical geo styling as choropleth
     fig.update_geos(
         visible=True,
         resolution=50,
         showcountries=True,
-        countrycolor="RebeccaPurple",
+        countrycolor="white",
         showcoastlines=True,
-        coastlinecolor="RebeccaPurple",
+        coastlinecolor="white",
         projection_type="mercator",
-        lataxis_range=[6, 37],      # India latitude range
-        lonaxis_range=[68, 98],     # India longitude range
-        center=dict(lat=22.5, lon=82.5),  # Center of India
-        bgcolor=PLOT_BG
+        center=dict(lat=20.5937, lon=78.9629),  # India center
+        lataxis_range=[8, 35],
+        lonaxis_range=[68, 97],
+        bgcolor=PLOT_BG,
+        showland=True,
+        landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
+        showlakes=True,
+        lakecolor='lightblue' if not is_dark else 'rgb(50, 50, 80)'
     )
     
     fig.update_layout(
-        height=650,
-        geo=dict(
-            scope='asia',
-            showland=True,
-            landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
-            showcountries=True,
-            countrycolor='white',
-            showlakes=True,
-            lakecolor='lightblue'
-        )
+        height=600,  # Match choropleth height
+        showlegend=True
     )
     
     st.plotly_chart(fig, use_container_width=True)
     st.info("💡 **Insight**: Large clusters in metro areas. Kerala shows high satisfaction.")
+    
+    # Add export functionality
+    export_data(df, f"store_performance_{size_metric}_{color_metric}.csv")
 
 def confusion_matrix_viz():
     """Confusion matrix with threshold slider."""
@@ -1179,3 +1149,56 @@ st.sidebar.markdown("- ✅ Animated Charts (+5%)")
 st.sidebar.markdown("- ✅ PR Curve (+3%)")
 st.sidebar.markdown("- ✅ Dark/Light Toggle (+3%)")
 st.sidebar.markdown("- ✅ Data Export (+4%)")
+            return
+    
+    # Fallback: Check for traditional source-target format
+    source_col = next((c for c in ['source', 'from', 'start'] if c in df.columns), None)
+    target_col = next((c for c in ['target', 'to', 'end'] if c in df.columns), None)
+    value_col = next((c for c in ['value', 'count', 'flow'] if c in df.columns), None)
+    
+    if not all([source_col, target_col, value_col]):
+        st.warning(f"⚠️ customer_journey.csv format not recognized.")
+        st.info("""
+        **Expected format (Option 1 - Sequential):**
+        - touchpoint_1, touchpoint_2, touchpoint_3, touchpoint_4, customer_count
+        
+        **Expected format (Option 2 - Source-Target):**
+        - source, target, value
+        
+        **Found columns:** {', '.join(df.columns.tolist())}
+        """)
+        st.write("Sample of your data:")
+        st.dataframe(df.head())
+        return
+    
+    # Process traditional source-target format
+    try:
+        all_nodes = list(set(df[source_col].tolist() + df[target_col].tolist()))
+        node_dict = {node: idx for idx, node in enumerate(all_nodes)}
+        
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="white", width=0.5),
+                label=all_nodes,
+                color=PALETTE[0]
+            ),
+            link=dict(
+                source=[node_dict[src] for src in df[source_col]],
+                target=[node_dict[tgt] for tgt in df[target_col]],
+                value=df[value_col].tolist(),
+                color='rgba(43, 140, 196, 0.3)'
+            )
+        )])
+        fig.update_layout(
+            title="Customer Journey Paths",
+            font_size=10,
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.info("💡 **Insight**: Visualizes multi-touchpoint customer paths and conversion flows.")
+    except Exception as e:
+        st.error(f"Error creating Sankey diagram: {str(e)}")
+        st.write("Sample of data:")
+        st.dataframe(df.head())
