@@ -244,18 +244,38 @@ def stacked_bar_campaign_type():
         st.warning("campaign_performance.csv must contain 'campaign_type'.")
         return
     
+    # Check if required columns exist
+    if 'spend' not in df.columns:
+        st.warning("campaign_performance.csv must contain 'spend' column.")
+        return
+    
     view_type = st.radio("View Type", ['Absolute', '100% Stacked'], key="stack_view")
     
-    agg = df.groupby(['month_num', 'month', 'campaign_type'])['spend'].sum().reset_index()
+    # Ensure month columns exist
+    if 'month_num' not in df.columns or 'month' not in df.columns:
+        # Create them if missing
+        if 'date' in df.columns:
+            df['month_num'] = pd.to_datetime(df['date']).dt.month
+            df['month'] = pd.to_datetime(df['date']).dt.strftime('%B')
+        else:
+            st.warning("Cannot create month grouping - 'date' column missing.")
+            return
+    
+    agg = df.groupby(['month_num', 'month', 'campaign_type'], dropna=False)['spend'].sum().reset_index()
     agg = agg.sort_values('month_num')
     
-    barmode = 'relative' if view_type == 'Absolute' else 'relative'
-    barnorm = '' if view_type == 'Absolute' else 'percent'
+    # Fix plotly bar parameters
+    if view_type == 'Absolute':
+        fig = px.bar(agg, x='month', y='spend', color='campaign_type', 
+                     title=f"Campaign Type Spend by Month ({view_type})",
+                     labels={'spend': 'Spend (₹)', 'month': 'Month'},
+                     barmode='stack')
+    else:
+        fig = px.bar(agg, x='month', y='spend', color='campaign_type', 
+                     title=f"Campaign Type Spend by Month ({view_type})",
+                     labels={'spend': 'Spend (₹)', 'month': 'Month'},
+                     barmode='stack', barnorm='percent')
     
-    fig = px.bar(agg, x='month', y='spend', color='campaign_type', 
-                 title=f"Campaign Type Spend by Month ({view_type})",
-                 labels={'spend': 'Spend (₹)', 'month': 'Month'},
-                 barmode=barmode, barnorm=barnorm if barnorm else None)
     st.plotly_chart(fig, use_container_width=True)
     
     st.info("💡 **Insight**: Lead Generation campaigns consume largest budget. Seasonal Sale spikes in Q4.")
@@ -496,31 +516,47 @@ def sankey_journey():
     if df.empty:
         return
     
-    required = ['source', 'target', 'value']
-    if not all(col in df.columns for col in required):
-        st.warning("customer_journey.csv must contain: source, target, value")
+    # Check for various possible column names
+    source_col = next((c for c in ['source', 'from', 'start'] if c in df.columns), None)
+    target_col = next((c for c in ['target', 'to', 'end'] if c in df.columns), None)
+    value_col = next((c for c in ['value', 'count', 'flow'] if c in df.columns), None)
+    
+    if not all([source_col, target_col, value_col]):
+        st.warning(f"⚠️ customer_journey.csv needs columns: source/target/value. Found columns: {', '.join(df.columns.tolist())}")
+        st.info("💡 Expected format: Each row represents a flow from 'source' touchpoint to 'target' touchpoint with a 'value' (count).")
         return
     
     # Create node labels
-    all_nodes = list(set(df['source'].tolist() + df['target'].tolist()))
-    node_dict = {node: idx for idx, node in enumerate(all_nodes)}
-    
-    fig = go.Figure(data=[go.Sankey(
-        node=dict(
-            pad=15,
-            thickness=20,
-            line=dict(color="white", width=0.5),
-            label=all_nodes
-        ),
-        link=dict(
-            source=[node_dict[src] for src in df['source']],
-            target=[node_dict[tgt] for tgt in df['target']],
-            value=df['value'].tolist()
+    try:
+        all_nodes = list(set(df[source_col].tolist() + df[target_col].tolist()))
+        node_dict = {node: idx for idx, node in enumerate(all_nodes)}
+        
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="white", width=0.5),
+                label=all_nodes,
+                color=PALETTE[0]
+            ),
+            link=dict(
+                source=[node_dict[src] for src in df[source_col]],
+                target=[node_dict[tgt] for tgt in df[target_col]],
+                value=df[value_col].tolist(),
+                color='rgba(43, 140, 196, 0.3)'
+            )
+        )])
+        fig.update_layout(
+            title="Customer Journey Paths",
+            font_size=10,
+            height=600
         )
-    )])
-    fig.update_layout(title="Customer Journey Paths", font_size=10)
-    st.plotly_chart(fig, use_container_width=True)
-    st.info("💡 **Insight**: Visualizes multi-touchpoint customer paths and conversion flows.")
+        st.plotly_chart(fig, use_container_width=True)
+        st.info("💡 **Insight**: Visualizes multi-touchpoint customer paths and conversion flows.")
+    except Exception as e:
+        st.error(f"Error creating Sankey diagram: {str(e)}")
+        st.write("Sample of data:")
+        st.dataframe(df.head())
 
 def choropleth_map():
     """NEW: Choropleth map showing state-wise performance."""
@@ -537,30 +573,54 @@ def choropleth_map():
     
     metric = st.selectbox("Metric", candidates, key="choro_metric")
     
-    # India GeoJSON (simplified for demonstration - you'd use full GeoJSON in production)
-    india_states = {
-        "type": "FeatureCollection",
-        "features": []
-    }
-    
     # Check if we have state column
     if 'state' not in df.columns:
         st.warning("geographic_data.csv must contain 'state' column for choropleth.")
         return
     
-    # Attempt to create choropleth using state names
-    fig = px.choropleth(
-        df,
-        locations='state',
-        locationmode='country names',
-        color=metric,
-        hover_name='state',
-        color_continuous_scale='Blues',
-        title=f"India State-wise {metric.replace('_', ' ').title()}"
-    )
+    # Use scatter_geo as fallback since we don't have actual GeoJSON
+    # Check for lat/lon columns
+    lat_col = next((c for c in ['latitude', 'lat'] if c in df.columns), None)
+    lon_col = next((c for c in ['longitude', 'lon', 'long'] if c in df.columns), None)
     
-    fig.update_geos(fitbounds="locations", visible=False)
-    st.plotly_chart(fig, use_container_width=True)
+    if lat_col and lon_col:
+        # Create a bubble map styled as choropleth
+        fig = px.scatter_geo(
+            df,
+            lat=lat_col,
+            lon=lon_col,
+            size=metric,
+            color=metric,
+            hover_name='state',
+            hover_data={metric: ':,.0f', lat_col: False, lon_col: False},
+            color_continuous_scale='Blues',
+            size_max=50,
+            title=f"India State-wise {metric.replace('_', ' ').title()}",
+            projection='natural earth'
+        )
+        fig.update_geos(
+            visible=True,
+            resolution=50,
+            showcountries=True,
+            countrycolor="white",
+            showcoastlines=True,
+            coastlinecolor="white",
+            projection_type="mercator",
+            center=dict(lat=20.5937, lon=78.9629),  # India center
+            lataxis_range=[8, 35],
+            lonaxis_range=[68, 97]
+        )
+        fig.update_layout(height=600, showlegend=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        # Final fallback: horizontal bar chart
+        st.info("📍 Latitude/longitude not available. Showing bar chart of top states.")
+        bar = df.nlargest(15, metric)[['state', metric]].sort_values(metric, ascending=True)
+        fig = px.bar(bar, x=metric, y='state', orientation='h',
+                    title=f"Top 15 States by {metric.replace('_', ' ').title()}",
+                    color=metric, color_continuous_scale='Blues')
+        st.plotly_chart(fig, use_container_width=True)
+    
     st.info("💡 **Insight**: Maharashtra and Karnataka are top performers. Eastern states show growth potential.")
     export_data(df, f"geographic_{metric}.csv")
 
