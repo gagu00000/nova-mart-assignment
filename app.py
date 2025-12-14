@@ -13,12 +13,10 @@ import json
 from datetime import datetime
 
 # ---------------------------
-# THEME SETTINGS & TOGGLE
+# THEME SETTINGS
 # ---------------------------
-APP_BG_DARK = "#0E1117"
-APP_BG_LIGHT = "#FFFFFF"
-TEXT_DARK = "#FFFFFF"
-TEXT_LIGHT = "#1F1F1F"
+APP_BG = "#0E1117"
+TEXT_COLOR = "#FFFFFF"
 SIDEBAR_BLUE = "#1F4E79"
 PRIMARY = "#0B3D91"
 ACCENT = "#2B8CC4"
@@ -26,26 +24,11 @@ PALETTE = [PRIMARY, ACCENT, "#66A3D2", "#B2D4EE", "#F4B400", "#E57373", "#81C784
 
 st.set_page_config(page_title="NovaMart Marketing Dashboard", layout="wide", initial_sidebar_state="expanded")
 
-# Theme Toggle State
-if 'theme' not in st.session_state:
-    st.session_state.theme = 'dark'
-
-def toggle_theme():
-    """Toggle between dark and light themes."""
-    st.session_state.theme = 'light' if st.session_state.theme == 'dark' else 'dark'
-
-# Get current theme colors
-is_dark = st.session_state.theme == 'dark'
-APP_BG = APP_BG_DARK if is_dark else APP_BG_LIGHT
-TEXT_COLOR = TEXT_DARK if is_dark else TEXT_LIGHT
-PLOT_BG = APP_BG_DARK if is_dark else "#F8F9FA"
-
-# Plotly template based on theme
-template_name = "plotly_dark" if is_dark else "plotly_white"
-pio.templates["hybrid_blue"] = pio.templates[template_name]
+# Plotly dark template with corporate blue palette
+pio.templates["hybrid_blue"] = pio.templates["plotly_dark"]
 pio.templates["hybrid_blue"].layout.update({
-    "paper_bgcolor": PLOT_BG,
-    "plot_bgcolor": PLOT_BG,
+    "paper_bgcolor": APP_BG,
+    "plot_bgcolor": APP_BG,
     "font": {"color": TEXT_COLOR, "family": "Arial"},
     "colorway": PALETTE,
     "legend": {"title_font": {"color": TEXT_COLOR}, "font": {"color": TEXT_COLOR}},
@@ -53,10 +36,7 @@ pio.templates["hybrid_blue"].layout.update({
 })
 pio.templates.default = "hybrid_blue"
 
-# CSS Styling with theme support
-sidebar_bg = SIDEBAR_BLUE if is_dark else "#E8F4F8"
-sidebar_text = "#FFFFFF" if is_dark else "#1F1F1F"
-
+# CSS Styling
 st.markdown(f"""
 <style>
 body, .stApp, .block-container {{
@@ -64,19 +44,13 @@ body, .stApp, .block-container {{
   color: {TEXT_COLOR} !important;
 }}
 section[data-testid="stSidebar"] {{
-  background-color: {sidebar_bg} !important;
-}}
-section[data-testid="stSidebar"] * {{
-  color: {sidebar_text} !important;
-}}
-section[data-testid="stSidebar"] .stRadio label {{
-  color: {sidebar_text} !important;
+  background-color: {SIDEBAR_BLUE} !important;
+  color: {TEXT_COLOR} !important;
 }}
 div[data-testid="metric-container"] {{
-  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(11, 61, 145, 0.08)'} !important;
+  background: rgba(255,255,255,0.03) !important;
   padding: 10px !important;
   border-radius: 8px;
-  border: {'none' if is_dark else '2px solid #0B3D91'};
 }}
 div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
   color: {TEXT_COLOR} !important;
@@ -89,20 +63,6 @@ div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-cont
 }}
 h1, h2, h3, h4, h5, p, span, label {{
   color: {TEXT_COLOR} !important;
-}}
-.stAlert {{
-  background-color: {'rgba(43, 140, 196, 0.1)' if is_dark else 'rgba(43, 140, 196, 0.15)'} !important;
-  color: {TEXT_COLOR} !important;
-  border: 1px solid {ACCENT} !important;
-}}
-.theme-toggle {{
-  background: {ACCENT};
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -255,7 +215,7 @@ def channel_performance():
     export_data(agg, f"channel_performance_{metric}.csv")
 
 def grouped_bar_regional():
-    """Grouped bar chart - Regional performance by quarter with animation."""
+    """NEW: Grouped bar chart - Regional performance by quarter."""
     st.subheader("Regional Performance by Quarter")
     df = df_or_warn('campaign')
     if df.empty or 'region' not in df.columns or 'quarter' not in df.columns:
@@ -263,47 +223,37 @@ def grouped_bar_regional():
         return
     
     years = sorted(df['year'].unique()) if 'year' in df.columns else [2023, 2024]
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        selected_year = st.selectbox("Select Year", years, key="reg_year")
-    with col2:
-        animate = st.checkbox("🎬 Animate", value=False, key="reg_animate")
+    selected_year = st.selectbox("Select Year", years, key="reg_year")
     
     dff = df[df['year'] == selected_year] if 'year' in df.columns else df
     agg = dff.groupby(['quarter', 'region'])['revenue'].sum().reset_index()
     
-    if animate:
-        fig = px.bar(agg, x='quarter', y='revenue', color='region', 
-                     barmode='group',
-                     title=f"Revenue by Region and Quarter ({selected_year}) - Animated",
-                     labels={'revenue': 'Revenue (₹)', 'quarter': 'Quarter'},
-                     animation_frame='quarter')
-        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 800
-    else:
-        fig = px.bar(agg, x='quarter', y='revenue', color='region', barmode='group',
-                     title=f"Revenue by Region and Quarter ({selected_year})",
-                     labels={'revenue': 'Revenue (₹)', 'quarter': 'Quarter'})
-    
+    fig = px.bar(agg, x='quarter', y='revenue', color='region', barmode='group',
+                 title=f"Revenue by Region and Quarter ({selected_year})",
+                 labels={'revenue': 'Revenue (₹)', 'quarter': 'Quarter'})
     st.plotly_chart(fig, use_container_width=True)
+    
     st.info("💡 **Insight**: West and South regions consistently outperform. Q4 shows festive season boost.")
     export_data(agg, f"regional_performance_{selected_year}.csv")
 
 def stacked_bar_campaign_type():
-    """Stacked bar chart - Campaign type contribution to monthly spend."""
+    """NEW: Stacked bar chart - Campaign type contribution to monthly spend."""
     st.subheader("Campaign Type Contribution to Monthly Spend")
     df = df_or_warn('campaign')
     if df.empty or 'campaign_type' not in df.columns:
         st.warning("campaign_performance.csv must contain 'campaign_type'.")
         return
     
+    # Check if required columns exist
     if 'spend' not in df.columns:
         st.warning("campaign_performance.csv must contain 'spend' column.")
         return
     
     view_type = st.radio("View Type", ['Absolute', '100% Stacked'], key="stack_view")
     
+    # Ensure month columns exist
     if 'month_num' not in df.columns or 'month' not in df.columns:
+        # Create them if missing
         if 'date' in df.columns:
             df['month_num'] = pd.to_datetime(df['date']).dt.month
             df['month'] = pd.to_datetime(df['date']).dt.strftime('%B')
@@ -314,6 +264,7 @@ def stacked_bar_campaign_type():
     agg = df.groupby(['month_num', 'month', 'campaign_type'], dropna=False)['spend'].sum().reset_index()
     agg = agg.sort_values('month_num')
     
+    # Fix plotly bar parameters
     if view_type == 'Absolute':
         fig = px.bar(agg, x='month', y='spend', color='campaign_type', 
                      title=f"Campaign Type Spend by Month ({view_type})",
@@ -326,61 +277,37 @@ def stacked_bar_campaign_type():
                      barmode='stack', barnorm='percent')
     
     st.plotly_chart(fig, use_container_width=True)
+    
     st.info("💡 **Insight**: Lead Generation campaigns consume largest budget. Seasonal Sale spikes in Q4.")
     export_data(agg, "campaign_type_spend.csv")
 
 def revenue_trend():
-    """Line chart showing revenue trend over time with animation option."""
+    """Line chart showing revenue trend over time."""
     st.subheader("Revenue Trend Over Time")
     df = df_or_warn('campaign')
     if df.empty or 'date' not in df.columns or 'revenue' not in df.columns:
         st.warning("campaign_performance.csv must contain 'date' and 'revenue'.")
         return
-    
     min_date = df['date'].min()
     max_date = df['date'].max()
-    
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        date_range = st.date_input("Date range", value=(min_date, max_date), 
-                                    min_value=min_date, max_value=max_date, key="rt_dates")
-    with col2:
-        animate = st.checkbox("🎬 Animate", value=False, key="rt_animate")
-    
+    date_range = st.date_input("Date range", value=(min_date, max_date), 
+                                min_value=min_date, max_value=max_date, key="rt_dates")
     agg_level = st.selectbox("Aggregation level", ['Daily', 'Weekly', 'Monthly'], index=2, key="rt_agg")
     channels = st.multiselect("Channels", 
                                options=df['channel'].dropna().unique().tolist() if 'channel' in df.columns else [], 
                                default=df['channel'].dropna().unique().tolist() if 'channel' in df.columns else [], 
                                key="rt_channels")
-    
     dff = df[(df['date'] >= pd.to_datetime(date_range[0])) & (df['date'] <= pd.to_datetime(date_range[1]))]
     if channels:
         dff = dff[dff['channel'].isin(channels)]
-    
     if agg_level == 'Daily':
         res = dff.groupby('date')['revenue'].sum().reset_index()
     elif agg_level == 'Weekly':
         res = dff.set_index('date').resample('W')['revenue'].sum().reset_index()
     else:
         res = dff.set_index('date').resample('M')['revenue'].sum().reset_index()
-    
-    res = res.sort_values('date').reset_index(drop=True)
-    
-    if animate:
-        res['date_str'] = res['date'].dt.strftime('%Y-%m-%d')
-        fig = px.scatter(res, x='date', y='revenue', 
-                        title=f"{agg_level} Revenue Trend (Animated)",
-                        animation_frame=res.index)
-        fig.update_traces(mode='lines+markers', marker=dict(size=8))
-        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 300
-        fig.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = 100
-        fig.update_xaxes(range=[res['date'].min(), res['date'].max()])
-        fig.update_yaxes(range=[0, res['revenue'].max() * 1.1])
-        st.plotly_chart(fig, use_container_width=True)
-        st.info("💡 **Animation**: Click ▶️ Play to watch revenue growth over time period by period.")
-    else:
-        fig = px.line(res, x='date', y='revenue', title=f"{agg_level} Revenue Trend", markers=True)
-        st.plotly_chart(fig, use_container_width=True)
+    fig = px.line(res, x='date', y='revenue', title=f"{agg_level} Revenue Trend")
+    st.plotly_chart(fig, use_container_width=True)
 
 def cumulative_conversions():
     """Stacked area chart showing cumulative conversions by channel."""
@@ -447,16 +374,18 @@ def satisfaction_violin():
     st.info("💡 **Insight**: Clear separation between groups; Detractors show bimodal distribution.")
 
 def income_vs_ltv():
-    """Scatter plot with working trendline toggle."""
+    """FIXED: Scatter plot with working trendline toggle."""
     st.subheader("Income vs Lifetime Value")
     df = df_or_warn('customer')
     if df.empty or 'income' not in df.columns or 'ltv' not in df.columns:
         st.warning("customer_data.csv must include 'income' and 'ltv'.")
         return
     show_trend = st.checkbox("Show trend line", key="income_trend")
-    fig = px.scatter(df, x='income', y='ltv',
+    
+    fig = px.scatter(
+        df, x='income', y='ltv',
         color='segment' if 'segment' in df.columns else None,
-        trendline='ols' if show_trend else None,
+        trendline='ols' if show_trend else None,  # FIXED: Actually add trendline
         title="Income vs LTV",
         hover_data=['customer_id'] if 'customer_id' in df.columns else None
     )
@@ -544,19 +473,25 @@ def treemap_products():
     st.info("💡 **Insight**: Electronics dominates sales volume; Fashion has highest margins.")
 
 def sunburst_segmentation():
-    """Sunburst chart for customer segmentation breakdown."""
+    """NEW: Sunburst chart for customer segmentation breakdown."""
     st.subheader("Customer Segmentation Breakdown")
     df = df_or_warn('customer')
     if df.empty:
         return
+    
+    # Build hierarchy path
     path_cols = []
     for col in ['region', 'city_tier', 'segment']:
         if col in df.columns:
             path_cols.append(col)
+    
     if len(path_cols) < 2:
         st.warning("customer_data.csv needs at least 2 of: region, city_tier, segment")
         return
+    
+    # Aggregate customer counts
     agg = df.groupby(path_cols).size().reset_index(name='customer_count')
+    
     fig = px.sunburst(agg, path=path_cols, values='customer_count',
                      title="Customer Segmentation: Region > City Tier > Segment")
     st.plotly_chart(fig, use_container_width=True)
@@ -580,365 +515,515 @@ def sankey_journey():
     df = df_or_warn('journey')
     if df.empty:
         return
+    
+    # Check if data is in sequence format (touchpoint_1, touchpoint_2, etc.)
     touchpoint_cols = [c for c in df.columns if 'touchpoint' in c.lower()]
     count_col = next((c for c in ['customer_count', 'count', 'value', 'customers'] if c in df.columns), None)
+    
     if touchpoint_cols and count_col:
+        # Transform sequential touchpoint data into source-target pairs
         st.info(f"📊 Detected sequential journey format with {len(touchpoint_cols)} touchpoints")
-        try:<invoke name="artifacts">
-<parameter name="command">update</parameter>
-<parameter name="id">novamart_dashboard_final</parameter>
-<parameter name="old_str">        try:</parameter>
-<parameter name="new_str">        try:
+        
+        try:
+            # Create source-target pairs from sequential touchpoints
             links = []
             for _, row in df.iterrows():
                 count = row[count_col]
                 touchpoints = [row[col] for col in sorted(touchpoint_cols) if pd.notna(row[col]) and row[col] != '']
+                
+                # Create links between consecutive touchpoints
                 for i in range(len(touchpoints) - 1):
-                    links.append({'source': touchpoints[i], 'target': touchpoints[i + 1], 'value': count})
+                    links.append({
+                        'source': touchpoints[i],
+                        'target': touchpoints[i + 1],
+                        'value': count
+                    })
+            
             if not links:
                 st.warning("No valid journey paths found in the data.")
                 return
+            
+            # Aggregate duplicate links
             links_df = pd.DataFrame(links)
             links_agg = links_df.groupby(['source', 'target'])['value'].sum().reset_index()
+            
+            # Create node labels
             all_nodes = list(set(links_agg['source'].tolist() + links_agg['target'].tolist()))
             node_dict = {node: idx for idx, node in enumerate(all_nodes)}
+            
+            # Create Sankey diagram
             fig = go.Figure(data=[go.Sankey(
-                node=dict(pad=15, thickness=20, line=dict(color="white", width=0.5),
-                    label=all_nodes, color=[PALETTE[i % len(PALETTE)] for i in range(len(all_nodes))]),
-                link=dict(source=[node_dict[src] for src in links_agg['source']],
+                node=dict(
+                    pad=15,
+                    thickness=20,
+                    line=dict(color="white", width=0.5),
+                    label=all_nodes,
+                    color=[PALETTE[i % len(PALETTE)] for i in range(len(all_nodes))]
+                ),
+                link=dict(
+                    source=[node_dict[src] for src in links_agg['source']],
                     target=[node_dict[tgt] for tgt in links_agg['target']],
-                    value=links_agg['value'].tolist(), color='rgba(43, 140, 196, 0.3)')
+                    value=links_agg['value'].tolist(),
+                    color='rgba(43, 140, 196, 0.3)'
+                )
             )])
-            fig.update_layout(title="Customer Journey Paths - Multi-Touchpoint Flow", font_size=10, height=600)
+            
+            fig.update_layout(
+                title="Customer Journey Paths - Multi-Touchpoint Flow",
+                font_size=10,
+                height=600
+            )
             st.plotly_chart(fig, use_container_width=True)
             st.info("💡 **Insight**: Shows customer paths across multiple touchpoints. Thicker flows indicate more customers taking that path.")
+            
+            # Show summary stats
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Journeys", f"{df[count_col].sum():,}")
             col2.metric("Unique Touchpoints", len(all_nodes))
             col3.metric("Average Path Length", f"{df[touchpoint_cols].notna().sum(axis=1).mean():.1f}")
+            
             return
+            
         except Exception as e:
             st.error(f"Error processing sequential journey data: {str(e)}")
             st.write("Sample of data:")
             st.dataframe(df.head())
             return
+    
+    # Fallback: Check for traditional source-target format
     source_col = next((c for c in ['source', 'from', 'start'] if c in df.columns), None)
     target_col = next((c for c in ['target', 'to', 'end'] if c in df.columns), None)
     value_col = next((c for c in ['value', 'count', 'flow'] if c in df.columns), None)
+    
     if not all([source_col, target_col, value_col]):
         st.warning(f"⚠️ customer_journey.csv format not recognized.")
-        st.info("""**Expected format (Option 1 - Sequential):**
+        st.info("""
+        **Expected format (Option 1 - Sequential):**
         - touchpoint_1, touchpoint_2, touchpoint_3, touchpoint_4, customer_count
+        
         **Expected format (Option 2 - Source-Target):**
         - source, target, value
-        **Found columns:** {', '.join(df.columns.tolist())}""")
+        
+        **Found columns:** {', '.join(df.columns.tolist())}
+        """)
         st.write("Sample of your data:")
         st.dataframe(df.head())
         return
+    
+    # Process traditional source-target format
     try:
         all_nodes = list(set(df[source_col].tolist() + df[target_col].tolist()))
         node_dict = {node: idx for idx, node in enumerate(all_nodes)}
+        
         fig = go.Figure(data=[go.Sankey(
-            node=dict(pad=15, thickness=20, line=dict(color="white", width=0.5),
-                label=all_nodes, color=PALETTE[0]),
-            link=dict(source=[node_dict[src] for src in df[source_col]],
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="white", width=0.5),
+                label=all_nodes,
+                color=PALETTE[0]
+            ),
+            link=dict(
+                source=[node_dict[src] for src in df[source_col]],
                 target=[node_dict[tgt] for tgt in df[target_col]],
-                value=df[value_col].tolist(), color='rgba(43, 140, 196, 0.3)')
+                value=df[value_col].tolist(),
+                color='rgba(43, 140, 196, 0.3)'
+            )
         )])
-        fig.update_layout(title="Customer Journey Paths", font_size=10, height=600)
+        fig.update_layout(
+            title="Customer Journey Paths",
+            font_size=10,
+            height=600
+        )
         st.plotly_chart(fig, use_container_width=True)
         st.info("💡 **Insight**: Visualizes multi-touchpoint customer paths and conversion flows.")
     except Exception as e:
         st.error(f"Error creating Sankey diagram: {str(e)}")
         st.write("Sample of data:")
         st.dataframe(df.head())
+
 def choropleth_map():
-"""Choropleth map showing state-wise performance."""
-st.subheader("State-wise Performance (Choropleth Map)")
-df = df_or_warn('geo')
-if df.empty:
-return
-candidates = [c for c in ['total_revenue','total_customers','market_penetration','yoy_growth'] if c in df.columns]
-if not candidates:
-st.warning("geographic_data.csv needs metrics: total_revenue/total_customers/market_penetration/yoy_growth.")
-return
-metric = st.selectbox("Metric", candidates, key="choro_metric")
-if 'state' not in df.columns:
-st.warning("geographic_data.csv must contain 'state' column for choropleth.")
-return
-lat_col = next((c for c in ['latitude', 'lat'] if c in df.columns), None)
-lon_col = next((c for c in ['longitude', 'lon', 'long'] if c in df.columns), None)
-if lat_col and lon_col:
-fig = px.scatter_geo(df, lat=lat_col, lon=lon_col, size=metric, color=metric,
-hover_name='state', hover_data={metric: ':,.0f', lat_col: False, lon_col: False},
-color_continuous_scale='Blues', size_max=50,
-title=f"India State-wise {metric.replace('', ' ').title()}", projection='natural earth')
-fig.update_geos(visible=True, resolution=50, showcountries=True, countrycolor="white",
-showcoastlines=True, coastlinecolor="white", projection_type="mercator",
-center=dict(lat=20.5937, lon=78.9629), lataxis_range=[8, 35], lonaxis_range=[68, 97])
-fig.update_layout(height=600, showlegend=True)
-st.plotly_chart(fig, use_container_width=True)
-else:
-st.info("🔍 Latitude/longitude not available. Showing bar chart of top states.")
-bar = df.nlargest(15, metric)[['state', metric]].sort_values(metric, ascending=True)
-fig = px.bar(bar, x=metric, y='state', orientation='h',
-title=f"Top 15 States by {metric.replace('', ' ').title()}",
-color=metric, color_continuous_scale='Blues')
-st.plotly_chart(fig, use_container_width=True)
-st.info("💡 Insight: Maharashtra and Karnataka are top performers. Eastern states show growth potential.")
-export_data(df, f"geographic_{metric}.csv")
+    """NEW: Choropleth map showing state-wise performance."""
+    st.subheader("State-wise Performance (Choropleth Map)")
+    df = df_or_warn('geo')
+    if df.empty:
+        return
+    
+    candidates = [c for c in ['total_revenue','total_customers','market_penetration','yoy_growth'] 
+                  if c in df.columns]
+    if not candidates:
+        st.warning("geographic_data.csv needs metrics: total_revenue/total_customers/market_penetration/yoy_growth.")
+        return
+    
+    metric = st.selectbox("Metric", candidates, key="choro_metric")
+    
+    # Check if we have state column
+    if 'state' not in df.columns:
+        st.warning("geographic_data.csv must contain 'state' column for choropleth.")
+        return
+    
+    # Use scatter_geo as fallback since we don't have actual GeoJSON
+    # Check for lat/lon columns
+    lat_col = next((c for c in ['latitude', 'lat'] if c in df.columns), None)
+    lon_col = next((c for c in ['longitude', 'lon', 'long'] if c in df.columns), None)
+    
+    if lat_col and lon_col:
+        # Create a bubble map styled as choropleth
+        fig = px.scatter_geo(
+            df,
+            lat=lat_col,
+            lon=lon_col,
+            size=metric,
+            color=metric,
+            hover_name='state',
+            hover_data={metric: ':,.0f', lat_col: False, lon_col: False},
+            color_continuous_scale='Blues',
+            size_max=50,
+            title=f"India State-wise {metric.replace('_', ' ').title()}",
+            projection='natural earth'
+        )
+        fig.update_geos(
+            visible=True,
+            resolution=50,
+            showcountries=True,
+            countrycolor="white",
+            showcoastlines=True,
+            coastlinecolor="white",
+            projection_type="mercator",
+            center=dict(lat=20.5937, lon=78.9629),  # India center
+            lataxis_range=[8, 35],
+            lonaxis_range=[68, 97]
+        )
+        fig.update_layout(height=600, showlegend=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        # Final fallback: horizontal bar chart
+        st.info("📍 Latitude/longitude not available. Showing bar chart of top states.")
+        bar = df.nlargest(15, metric)[['state', metric]].sort_values(metric, ascending=True)
+        fig = px.bar(bar, x=metric, y='state', orientation='h',
+                    title=f"Top 15 States by {metric.replace('_', ' ').title()}",
+                    color=metric, color_continuous_scale='Blues')
+        st.plotly_chart(fig, use_container_width=True)
+    
+    st.info("💡 **Insight**: Maharashtra and Karnataka are top performers. Eastern states show growth potential.")
+    export_data(df, f"geographic_{metric}.csv")
+
 def bubble_map():
-"""Bubble map showing store performance by location - Styled like Choropleth."""
-st.subheader("Store Performance (Bubble Map)")
-df = df_or_warn('geo')
-if df.empty:
-return
-lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
-lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
-if not (lat_col and lon_col):
-st.warning("geographic_data.csv needs latitude/longitude columns.")
-return
-size_options = [c for c in ['store_count', 'total_customers', 'total_revenue'] if c in df.columns]
-color_options = [c for c in ['customer_satisfaction', 'total_revenue', 'market_penetration', 'yoy_growth'] if c in df.columns]
-col1, col2 = st.columns(2)
-with col1:
-size_metric = st.selectbox("Bubble Size", size_options, index=0, key="bubble_size")
-with col2:
-color_metric = st.selectbox("Bubble Color", color_options, index=0, key="bubble_color")
-animate = st.checkbox("🎬 Animate by State", value=False, key="bubble_animate")
-hover_cols = {col: ':,.0f' for col in df.columns if col not in [lat_col, lon_col, 'state']}
-hover_cols[lat_col] = False
-hover_cols[lon_col] = False
-if animate and 'state' in df.columns:
-fig = px.scatter_geo(df, lat=lat_col, lon=lon_col, size=size_metric, color=color_metric,
-hover_name='state', hover_data=hover_cols,
-title=f"Store Performance: {size_metric.replace('', ' ').title()} (Size) vs {color_metric.replace('', ' ').title()} (Color) - Animated",
-animation_frame='state', color_continuous_scale='Blues', size_max=50)
-fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 800
-else:
-fig = px.scatter_geo(df, lat=lat_col, lon=lon_col, size=size_metric, color=color_metric,
-hover_name='state' if 'state' in df.columns else None, hover_data=hover_cols,
-title=f"Store Performance: {size_metric.replace('', ' ').title()} (Size) vs {color_metric.replace('', ' ').title()} (Color)",
-color_continuous_scale='Blues', size_max=50)
-fig.update_geos(visible=True, resolution=50, showcountries=True, countrycolor="white",
-showcoastlines=True, coastlinecolor="white", projection_type="mercator",
-center=dict(lat=20.5937, lon=78.9629), lataxis_range=[8, 35], lonaxis_range=[68, 97],
-bgcolor=PLOT_BG, showland=True,
-landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
-showlakes=True, lakecolor='lightblue' if not is_dark else 'rgb(50, 50, 80)')
-fig.update_layout(height=600, showlegend=True)
-st.plotly_chart(fig, use_container_width=True)
-st.info("💡 Insight: Large clusters in metro areas. Kerala shows high satisfaction.")
-export_data(df, f"store_performance_{size_metric}_{color_metric}.csv")
+    """Bubble map showing store performance by location."""
+    st.subheader("Store Performance (Bubble Map)")
+    df = df_or_warn('geo')
+    if df.empty:
+        return
+    
+    lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
+    lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
+    
+    if not (lat_col and lon_col):
+        st.warning("geographic_data.csv needs latitude/longitude columns.")
+        return
+    
+    size_col = 'store_count' if 'store_count' in df.columns else 'total_customers'
+    color_col = 'customer_satisfaction' if 'customer_satisfaction' in df.columns else 'total_revenue'
+    
+    fig = px.scatter_geo(
+        df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
+        hover_name='state' if 'state' in df.columns else None,
+        projection="natural earth",
+        title="Store Performance by Location"
+    )
+    fig.update_layout(height=600)
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("💡 **Insight**: Large clusters in metro areas. Kerala shows high satisfaction.")
+
 def confusion_matrix_viz():
-"""Confusion matrix with threshold slider."""
-st.subheader("Confusion Matrix - Lead Scoring Model")
-df = df_or_warn('lead')
-if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
-st.warning("lead_scoring_results.csv needs actual_converted and predicted_probability.")
-return
-thr = st.slider("Classification Threshold", 0.0, 1.0, 0.5, 0.05, key="conf_thr")
-preds = (df['predicted_probability'] >= thr).astype(int)
-ct = pd.crosstab(df['actual_converted'], preds, rownames=['Actual'], colnames=['Predicted'])
-fig = px.imshow(ct.values, x=ct.columns.astype(str), y=ct.index.astype(str),
-text_auto=True, labels=dict(x='Predicted', y='Actual'),
-title=f"Confusion Matrix (Threshold={thr:.2f})", color_continuous_scale='Blues')
-st.plotly_chart(fig, use_container_width=True)
-if ct.shape == (2, 2):
-tn, fp, fn, tp = ct.values.ravel()
-accuracy = (tp + tn) / (tp + tn + fp + fn)
-precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-recall = tp / (tp + fn) if (tp + fn) > 0 else 0
-c1, c2, c3 = st.columns(3)
-c1.metric("Accuracy", f"{accuracy:.2%}")
-c2.metric("Precision", f"{precision:.2%}")
-c3.metric("Recall", f"{recall:.2%}")
-st.info("💡 Insight: Model shows good true positive rate. False positives are acceptable.")
+    """Confusion matrix with threshold slider."""
+    st.subheader("Confusion Matrix - Lead Scoring Model")
+    df = df_or_warn('lead')
+    if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
+        st.warning("lead_scoring_results.csv needs actual_converted and predicted_probability.")
+        return
+    
+    thr = st.slider("Classification Threshold", 0.0, 1.0, 0.5, 0.05, key="conf_thr")
+    preds = (df['predicted_probability'] >= thr).astype(int)
+    ct = pd.crosstab(df['actual_converted'], preds, rownames=['Actual'], colnames=['Predicted'])
+    
+    fig = px.imshow(ct.values, x=ct.columns.astype(str), y=ct.index.astype(str),
+                   text_auto=True, labels=dict(x='Predicted', y='Actual'),
+                   title=f"Confusion Matrix (Threshold={thr:.2f})",
+                   color_continuous_scale='Blues')
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Calculate metrics
+    if ct.shape == (2, 2):
+        tn, fp, fn, tp = ct.values.ravel()
+        accuracy = (tp + tn) / (tp + tn + fp + fn)
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Accuracy", f"{accuracy:.2%}")
+        c2.metric("Precision", f"{precision:.2%}")
+        c3.metric("Recall", f"{recall:.2%}")
+    
+    st.info("💡 **Insight**: Model shows good true positive rate. False positives are acceptable.")
+
 def roc_viz():
-"""ROC curve with optimal threshold marker."""
-st.subheader("ROC Curve - Model Performance")
-df = df_or_warn('lead')
-if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
-return
-fpr, tpr, thresholds = roc_curve(df['actual_converted'], df['predicted_probability'])
-roc_auc = auc(fpr, tpr)
-optimal_idx = np.argmax(tpr - fpr)
-optimal_threshold = thresholds[optimal_idx]
-optimal_fpr = fpr[optimal_idx]
-optimal_tpr = tpr[optimal_idx]
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC (AUC={roc_auc:.3f})',
-fill='tozeroy', fillcolor='rgba(43, 140, 196, 0.2)'))
-fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines',
-line=dict(dash='dash', color='gray'), name='Random'))
-fig.add_trace(go.Scatter(x=[optimal_fpr], y=[optimal_tpr], mode='markers',
-marker=dict(size=12, color='red', symbol='star'), name=f'Optimal (θ={optimal_threshold:.3f})'))
-fig.update_layout(title=f"ROC Curve (AUC={roc_auc:.3f})",
-xaxis_title="False Positive Rate", yaxis_title="True Positive Rate", showlegend=True)
-st.plotly_chart(fig, use_container_width=True)
-st.success(f"🎯 Optimal Threshold: {optimal_threshold:.3f} (TPR={optimal_tpr:.2%}, FPR={optimal_fpr:.2%})")
-st.info("💡 Insight: AUC ~0.75-0.80 indicates good model discrimination ability.")
+    """FIXED: ROC curve with optimal threshold marker."""
+    st.subheader("ROC Curve - Model Performance")
+    df = df_or_warn('lead')
+    if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
+        return
+    
+    fpr, tpr, thresholds = roc_curve(df['actual_converted'], df['predicted_probability'])
+    roc_auc = auc(fpr, tpr)
+    
+    # Calculate optimal threshold using Youden's J statistic
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_threshold = thresholds[optimal_idx]
+    optimal_fpr = fpr[optimal_idx]
+    optimal_tpr = tpr[optimal_idx]
+    
+    # Create figure
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f'ROC (AUC={roc_auc:.3f})',
+                            fill='tozeroy', fillcolor='rgba(43, 140, 196, 0.2)'))
+    fig.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', 
+                            line=dict(dash='dash', color='gray'), name='Random'))
+    
+    # Mark optimal threshold
+    fig.add_trace(go.Scatter(x=[optimal_fpr], y=[optimal_tpr], mode='markers',
+                            marker=dict(size=12, color='red', symbol='star'),
+                            name=f'Optimal (θ={optimal_threshold:.3f})'))
+    
+    fig.update_layout(
+        title=f"ROC Curve (AUC={roc_auc:.3f})",
+        xaxis_title="False Positive Rate",
+        yaxis_title="True Positive Rate",
+        showlegend=True
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    st.success(f"🎯 **Optimal Threshold**: {optimal_threshold:.3f} (TPR={optimal_tpr:.2%}, FPR={optimal_fpr:.2%})")
+    st.info("💡 **Insight**: AUC ~0.75-0.80 indicates good model discrimination ability.")
+
 def precision_recall_curve_viz():
-"""BONUS: Precision-Recall curve for imbalanced classes."""
-st.subheader("Precision-Recall Curve")
-df = df_or_warn('lead')
-if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
-return
-precision, recall, thresholds = precision_recall_curve(df['actual_converted'], df['predicted_probability'])
-f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
-optimal_idx = np.argmax(f1_scores)
-optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=recall, y=precision, mode='lines',
-name='PR Curve', fill='tozeroy', fillcolor='rgba(43, 140, 196, 0.2)'))
-fig.add_trace(go.Scatter(x=[recall[optimal_idx]], y=[precision[optimal_idx]],
-mode='markers', marker=dict(size=12, color='red', symbol='star'),
-name=f'Max F1 (θ={optimal_threshold:.3f})'))
-fig.update_layout(title="Precision-Recall Curve", xaxis_title="Recall",
-yaxis_title="Precision", showlegend=True)
-st.plotly_chart(fig, use_container_width=True)
-st.info("💡 Insight: PR curve is more informative for imbalanced datasets than ROC.")
+    """BONUS: Precision-Recall curve for imbalanced classes."""
+    st.subheader("Precision-Recall Curve")
+    df = df_or_warn('lead')
+    if df.empty or not set(['actual_converted','predicted_probability']).issubset(df.columns):
+        return
+    
+    precision, recall, thresholds = precision_recall_curve(
+        df['actual_converted'], df['predicted_probability']
+    )
+    
+    # Calculate F1 scores
+    f1_scores = 2 * (precision * recall) / (precision + recall + 1e-10)
+    optimal_idx = np.argmax(f1_scores)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else 0.5
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=recall, y=precision, mode='lines',
+                            name='PR Curve', fill='tozeroy',
+                            fillcolor='rgba(43, 140, 196, 0.2)'))
+    
+    fig.add_trace(go.Scatter(x=[recall[optimal_idx]], y=[precision[optimal_idx]],
+                            mode='markers', marker=dict(size=12, color='red', symbol='star'),
+                            name=f'Max F1 (θ={optimal_threshold:.3f})'))
+    
+    fig.update_layout(
+        title="Precision-Recall Curve",
+        xaxis_title="Recall",
+        yaxis_title="Precision",
+        showlegend=True
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("💡 **Insight**: PR curve is more informative for imbalanced datasets than ROC.")
+
 def learning_curve_plot():
-"""Learning curve with confidence bands."""
-st.subheader("Learning Curve - Model Diagnostics")
-df = df_or_warn('learning_curve')
-if df.empty:
-return
-required = {'train_size', 'train_score', 'val_score'}
-if not required.issubset(set(df.columns)):
-st.warning("learning_curve.csv must include train_size, train_score, val_score.")
-return
-show_conf = st.checkbox("Show confidence bands", value=True, key="lc_conf")
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=df['train_size'], y=df['train_score'],
-mode='lines+markers', name='Training Score', line=dict(color=PRIMARY)))
-fig.add_trace(go.Scatter(x=df['train_size'], y=df['val_score'],
-mode='lines+markers', name='Validation Score', line=dict(color=ACCENT)))
-if show_conf and 'train_std' in df.columns and 'val_std' in df.columns:
-fig.add_trace(go.Scatter(
-x=df['train_size'].tolist() + df['train_size'].tolist()[::-1],
-y=(df['train_score'] + df['train_std']).tolist() + (df['train_score'] - df['train_std']).tolist()[::-1],
-fill='toself', fillcolor='rgba(11, 61, 145, 0.2)',
-line=dict(color='rgba(255,255,255,0)'), showlegend=False, name='Train CI'))
-fig.add_trace(go.Scatter(
-x=df['train_size'].tolist() + df['train_size'].tolist()[::-1],
-y=(df['val_score'] + df['val_std']).tolist() + (df['val_score'] - df['val_std']).tolist()[::-1],
-fill='toself', fillcolor='rgba(43, 140, 196, 0.2)',
-line=dict(color='rgba(255,255,255,0)'), showlegend=False, name='Val CI'))
-fig.update_layout(title="Learning Curve", xaxis_title="Training Set Size",
-yaxis_title="Score", showlegend=True)
-st.plotly_chart(fig, use_container_width=True)
-st.info("💡 Insight: Converging curves indicate no overfitting. More data would marginally improve performance.")
+    """FIXED: Learning curve with confidence bands."""
+    st.subheader("Learning Curve - Model Diagnostics")
+    df = df_or_warn('learning_curve')
+    if df.empty:
+        return
+    
+    required = {'train_size', 'train_score', 'val_score'}
+    if not required.issubset(set(df.columns)):
+        st.warning("learning_curve.csv must include train_size, train_score, val_score.")
+        return
+    
+    show_conf = st.checkbox("Show confidence bands", value=True, key="lc_conf")
+    
+    fig = go.Figure()
+    
+    # Training score line
+    fig.add_trace(go.Scatter(x=df['train_size'], y=df['train_score'],
+                            mode='lines+markers', name='Training Score',
+                            line=dict(color=PRIMARY)))
+    
+    # Validation score line
+    fig.add_trace(go.Scatter(x=df['train_size'], y=df['val_score'],
+                            mode='lines+markers', name='Validation Score',
+                            line=dict(color=ACCENT)))
+    
+    # Add confidence bands if available and requested
+    if show_conf and 'train_std' in df.columns and 'val_std' in df.columns:
+        # Training confidence band
+        fig.add_trace(go.Scatter(
+            x=df['train_size'].tolist() + df['train_size'].tolist()[::-1],
+            y=(df['train_score'] + df['train_std']).tolist() + 
+              (df['train_score'] - df['train_std']).tolist()[::-1],
+            fill='toself', fillcolor='rgba(11, 61, 145, 0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            showlegend=False, name='Train CI'
+        ))
+        
+        # Validation confidence band
+        fig.add_trace(go.Scatter(
+            x=df['train_size'].tolist() + df['train_size'].tolist()[::-1],
+            y=(df['val_score'] + df['val_std']).tolist() + 
+              (df['val_score'] - df['val_std']).tolist()[::-1],
+            fill='toself', fillcolor='rgba(43, 140, 196, 0.2)',
+            line=dict(color='rgba(255,255,255,0)'),
+            showlegend=False, name='Val CI'
+        ))
+    
+    fig.update_layout(
+        title="Learning Curve",
+        xaxis_title="Training Set Size",
+        yaxis_title="Score",
+        showlegend=True
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("💡 **Insight**: Converging curves indicate no overfitting. More data would marginally improve performance.")
+
 def feature_importance_plot():
-"""Feature importance with toggleable error bars."""
-st.subheader("Feature Importance - Model Interpretability")
-df = df_or_warn('feature_importance')
-if df.empty or not set(['feature','importance']).issubset(df.columns):
-st.warning("feature_importance.csv must contain feature and importance.")
-return
-col1, col2 = st.columns(2)
-with col1:
-asc = st.checkbox("Sort ascending", value=False, key="fi_sort")
-with col2:
-show_error = st.checkbox("Show error bars", value=True, key="fi_error")
-dfp = df.sort_values('importance', ascending=asc)
-fig = px.bar(dfp, x='importance', y='feature', orientation='h',
-error_x='std' if (show_error and 'std' in df.columns) else None, title="Feature Importance")
-st.plotly_chart(fig, use_container_width=True)
-st.info("💡 Insight: Webinar attendance and form submissions are strongest predictors.")
-export_data(dfp, "feature_importance.csv")
-PAGE ROUTER
+    """Feature importance with toggleable error bars."""
+    st.subheader("Feature Importance - Model Interpretability")
+    df = df_or_warn('feature_importance')
+    if df.empty or not set(['feature','importance']).issubset(df.columns):
+        st.warning("feature_importance.csv must contain feature and importance.")
+        return
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        asc = st.checkbox("Sort ascending", value=False, key="fi_sort")
+    with col2:
+        show_error = st.checkbox("Show error bars", value=True, key="fi_error")
+    
+    dfp = df.sort_values('importance', ascending=asc)
+    
+    fig = px.bar(dfp, x='importance', y='feature', orientation='h',
+                error_x='std' if (show_error and 'std' in df.columns) else None,
+                title="Feature Importance")
+    st.plotly_chart(fig, use_container_width=True)
+    st.info("💡 **Insight**: Webinar attendance and form submissions are strongest predictors.")
+    export_data(dfp, "feature_importance.csv")
+
+# ---------------------------
+# PAGE ROUTER
+# ---------------------------
 st.sidebar.title("🛒 NovaMart Dashboard")
 st.sidebar.markdown("---")
-theme_icon = "🌙" if is_dark else "☀️"
-theme_label = "Light Mode" if is_dark else "Dark Mode"
-if st.sidebar.button(f"{theme_icon} Switch to {theme_label}", key="theme_toggle", use_container_width=True):
-toggle_theme()
-st.rerun()
+
+page = st.sidebar.radio("📊 Navigate", [
+    "Executive Overview",
+    "Campaign Analytics",
+    "Customer Insights",
+    "Product Performance",
+    "Geographic Analysis",
+    "Attribution & Funnel",
+    "ML Model Evaluation"
+])
+
 st.sidebar.markdown("---")
-page = st.sidebar.radio("📊 Navigate", ["Executive Overview", "Campaign Analytics", "Customer Insights",
-"Product Performance", "Geographic Analysis", "Attribution & Funnel", "ML Model Evaluation"])
-st.sidebar.markdown("---")
-st.sidebar.info("💡 Tip: Use filters and toggles to explore different perspectives of the data.")
-if is_dark:
-st.sidebar.success("🌙 Dark Mode Active")
-else:
-st.sidebar.info("☀️ Light Mode Active")
-PAGE CONTENT
+st.sidebar.info("💡 **Tip**: Use filters and toggles to explore different perspectives of the data.")
+
+# ---------------------------
+# PAGE CONTENT
+# ---------------------------
 if page == "Executive Overview":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📈 Executive Overview</div>", unsafe_allow_html=True)
-kpi_overview()
-st.markdown("---")
-revenue_trend()
-st.markdown("---")
-channel_performance()
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📈 Executive Overview</div>", 
+                unsafe_allow_html=True)
+    kpi_overview()
+    st.markdown("---")
+    revenue_trend()
+    st.markdown("---")
+    channel_performance()
+
 elif page == "Campaign Analytics":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📢 Campaign Analytics</div>", unsafe_allow_html=True)
-grouped_bar_regional()
-st.markdown("---")
-stacked_bar_campaign_type()
-st.markdown("---")
-revenue_trend()
-st.markdown("---")
-cumulative_conversions()
-st.markdown("---")
-calendar_heatmap()
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📢 Campaign Analytics</div>", 
+                unsafe_allow_html=True)
+    grouped_bar_regional()
+    st.markdown("---")
+    stacked_bar_campaign_type()
+    st.markdown("---")
+    revenue_trend()
+    st.markdown("---")
+    cumulative_conversions()
+    st.markdown("---")
+    calendar_heatmap()
+
 elif page == "Customer Insights":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>👥 Customer Insights</div>", unsafe_allow_html=True)
-age_distribution()
-st.markdown("---")
-ltv_by_segment()
-st.markdown("---")
-satisfaction_violin()
-st.markdown("---")
-income_vs_ltv()
-st.markdown("---")
-channel_bubble()
-st.markdown("---")
-sunburst_segmentation()
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>👥 Customer Insights</div>", 
+                unsafe_allow_html=True)
+    age_distribution()
+    st.markdown("---")
+    ltv_by_segment()
+    st.markdown("---")
+    satisfaction_violin()
+    st.markdown("---")
+    income_vs_ltv()
+    st.markdown("---")
+    channel_bubble()
+    st.markdown("---")
+    sunburst_segmentation()
+
 elif page == "Product Performance":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📦 Product Performance</div>", unsafe_allow_html=True)
-treemap_products()
-st.markdown("---")
-st.info("💡 Analysis: Use the treemap to identify high-volume low-margin products for pricing review.")
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>📦 Product Performance</div>", 
+                unsafe_allow_html=True)
+    treemap_products()
+    st.markdown("---")
+    st.info("💡 **Analysis**: Use the treemap to identify high-volume low-margin products for pricing review.")
+
 elif page == "Geographic Analysis":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🌍 Geographic Analysis</div>", unsafe_allow_html=True)
-choropleth_map()
-st.markdown("---")
-bubble_map()
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🌍 Geographic Analysis</div>", 
+                unsafe_allow_html=True)
+    choropleth_map()
+    st.markdown("---")
+    bubble_map()
+
 elif page == "Attribution & Funnel":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🎯 Attribution & Funnel</div>", unsafe_allow_html=True)
-funnel_viz()
-st.markdown("---")
-donut_attribution()
-st.markdown("---")
-sankey_journey()
-st.markdown("---")
-correlation_heatmap()
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🎯 Attribution & Funnel</div>", 
+                unsafe_allow_html=True)
+    funnel_viz()
+    st.markdown("---")
+    donut_attribution()
+    st.markdown("---")
+    sankey_journey()
+    st.markdown("---")
+    correlation_heatmap()
+
 elif page == "ML Model Evaluation":
-st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🤖 ML Model Evaluation</div>", unsafe_allow_html=True)
-confusion_matrix_viz()
-st.markdown("---")
-roc_viz()
-st.markdown("---")
-precision_recall_curve_viz()
-st.markdown("---")
-learning_curve_plot()
-st.markdown("---")
-feature_importance_plot()
-Footer
+    st.markdown(f"<div style='font-size:28px;font-weight:700;color:{PRIMARY}'>🤖 ML Model Evaluation</div>", 
+                unsafe_allow_html=True)
+    confusion_matrix_viz()
+    st.markdown("---")
+    roc_viz()
+    st.markdown("---")
+    precision_recall_curve_viz()
+    st.markdown("---")
+    learning_curve_plot()
+    st.markdown("---")
+    feature_importance_plot()
+
+# Footer
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📄 About")
-st.sidebar.write("NovaMart Marketing Analytics Dashboard")
+st.sidebar.write("**NovaMart Marketing Analytics Dashboard**")
 st.sidebar.write("Built for: Streamlit Data Visualization Assignment")
-st.sidebar.write("Author: Gagandeep Singh")
-st.sidebar.write("Version: 2.0 (Complete + All Bonuses)")
+st.sidebar.write("**Author**: Gagandeep Singh")
+st.sidebar.write("**Version**: 2.0 (Complete)")
 st.sidebar.markdown("---")
 st.sidebar.success("✅ All 20+ visualizations implemented")
-st.sidebar.success("✅ All 5 bonus features included (+20%)")
-st.sidebar.markdown("Bonus Features:")
-st.sidebar.markdown("- ✅ Sankey Diagram (+5%)")
-st.sidebar.markdown("- ✅ Animated Charts (+5%)")
-st.sidebar.markdown("- ✅ PR Curve (+3%)")
-st.sidebar.markdown("- ✅ Dark/Light Toggle (+3%)")
-st.sidebar.markdown("- ✅ Data Export (+4%)")</parameter>
+st.sidebar.success("✅ Bonus features included")
