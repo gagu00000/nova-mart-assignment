@@ -94,44 +94,6 @@ div[data-testid="stMetricValue"] {{
 }}
 /* --- UPDATED METRIC STYLING END --- */
 
-/* --- THEME TOGGLE LAYOUT/COLOR FIX (Request 3 & 4: Grey Color) --- */
-/* Center the toggle switch vertically and horizontally in its column */
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle {{
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-    padding: 5px 0; /* Adjusted vertical padding */
-}}
-/* Style for the Light/Dark text labels */
-[data-testid="stSidebar"] .theme-label {{
-    font-weight: 600;
-    font-size: 14px;
-    margin-top: 5px; 
-    white-space: nowrap;
-    color: {sidebar_text} !important; /* High contrast text */
-}}
-
-/* Target the switch component itself for color fix */
-/* The thumb (the circle) */
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button::after {{
-    background: #FFFFFF !important; /* White thumb for max contrast */
-    border: 1px solid #333333 !important; /* Dark border for neutral look */
-    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5) !important;
-}}
-/* The track (when OFF/Light Mode - Neutral Grey) */
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button {{
-    background: #A9A9A9 !important; /* Dark Gray for light mode contrast (Neutral) */
-    border: 1px solid #A9A9A9 !important;
-}}
-/* The track (when ON/Dark Mode - Neutral Grey) */
-[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button:checked {{
-    background: #708090 !important; /* Slate Gray (Darker Grey) for dark mode contrast (Neutral) */
-    border: 1px solid #708090 !important;
-}}
-/* --- THEME TOGGLE LAYOUT/COLOR FIX END --- */
-
-
 .stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
   color: {TEXT_COLOR} !important;
 }}
@@ -147,15 +109,16 @@ h1, h2, h3, h4, h5, p, span, label {{
   color: {TEXT_COLOR} !important;
   border: 1px solid {ACCENT} !important;
 }}
-/* Theme toggle button styling (Kept for completeness but obsolete) */
-.theme-toggle {{
-  background: {ACCENT};
-  color: white;
-  padding: 8px 16px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
+/* Theme toggle button styling */
+/* Applying fixed styles to the actual Streamlit button in the sidebar for maximum visibility */
+section[data-testid="stSidebar"] button {{
+  background: {ACCENT} !important;
+  color: white !important;
+  padding: 8px 16px !important;
+  border-radius: 6px !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
 }}
 </style>
 """, unsafe_allow_html=True)
@@ -1101,35 +1064,14 @@ def feature_importance_plot():
 st.sidebar.title("🛒 NovaMart Dashboard")
 st.sidebar.markdown("---")
 
-# Theme Toggle Switch (UPDATED Layout: Light | Switch | Dark)
-# Use columns for a neat horizontal layout. [1, 1.5, 1] balances the space.
-col_light, col_switch, col_dark = st.sidebar.columns([1, 1.5, 1])
-
-with col_light:
-    # Use the custom CSS class 'theme-label' defined above
-    # Light should be on the left side of the switch
-    st.markdown("<p class='theme-label' style='text-align: right;'>☀️ Light</p>", unsafe_allow_html=True)
-
-with col_switch:
-    # Use st.toggle without a label to make it smaller and centered
-    # The value should be set to True when in Dark mode
-    is_dark_new = st.toggle(
-        label="",
-        value=is_dark,
-        key="theme_toggle_switch",
-    )
-
-with col_dark:
-    # Dark should be on the right side of the switch
-    st.markdown("<p class='theme-label' style='text-align: left;'>🌙 Dark</p>", unsafe_allow_html=True)
-
-# Logic to handle the toggle change
-if is_dark_new != is_dark:
-    # toggle_theme() flips the st.session_state.theme
-    toggle_theme() 
+# Theme Toggle Button
+theme_icon = "🌙" if is_dark else "☀️"
+theme_label = "Light Mode" if is_dark else "Dark Mode"
+if st.sidebar.button(f"{theme_icon} Switch to {theme_label}", key="theme_toggle", use_container_width=True):
+    toggle_theme()
     st.rerun()
 
-st.sidebar.markdown("---") # Add separator after the switch
+st.sidebar.markdown("---")
 
 page = st.sidebar.radio("📊 Navigate", [
     "Executive Overview",
