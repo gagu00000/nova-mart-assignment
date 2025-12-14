@@ -54,6 +54,9 @@ pio.templates["hybrid_blue"].layout.update({
 pio.templates.default = "hybrid_blue"
 
 # CSS Styling with theme support
+sidebar_bg = SIDEBAR_BLUE if is_dark else "#E8F4F8"
+sidebar_text = "#FFFFFF" if is_dark else "#1F1F1F"
+
 st.markdown(f"""
 <style>
 body, .stApp, .block-container {{
@@ -61,14 +64,19 @@ body, .stApp, .block-container {{
   color: {TEXT_COLOR} !important;
 }}
 section[data-testid="stSidebar"] {{
-  background-color: {SIDEBAR_BLUE} !important;
-  color: #FFFFFF !important;
+  background-color: {sidebar_bg} !important;
+}}
+section[data-testid="stSidebar"] * {{
+  color: {sidebar_text} !important;
+}}
+section[data-testid="stSidebar"] .stRadio label {{
+  color: {sidebar_text} !important;
 }}
 div[data-testid="metric-container"] {{
-  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(0,0,0,0.03)'} !important;
+  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(11, 61, 145, 0.08)'} !important;
   padding: 10px !important;
   border-radius: 8px;
-  border: {'none' if is_dark else '1px solid #E0E0E0'};
+  border: {'none' if is_dark else '2px solid #0B3D91'};
 }}
 div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
   color: {TEXT_COLOR} !important;
@@ -81,6 +89,12 @@ div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-cont
 }}
 h1, h2, h3, h4, h5, p, span, label {{
   color: {TEXT_COLOR} !important;
+}}
+/* Info/warning boxes */
+.stAlert {{
+  background-color: {'rgba(43, 140, 196, 0.1)' if is_dark else 'rgba(43, 140, 196, 0.15)'} !important;
+  color: {TEXT_COLOR} !important;
+  border: 1px solid {ACCENT} !important;
 }}
 /* Theme toggle button styling */
 .theme-toggle {{
@@ -359,23 +373,34 @@ def revenue_trend():
     else:
         res = dff.set_index('date').resample('M')['revenue'].sum().reset_index()
     
-    # Add cumulative revenue for animation
-    res['cumulative_revenue'] = res['revenue'].cumsum()
+    # Sort by date to ensure proper animation
+    res = res.sort_values('date').reset_index(drop=True)
     
     if animate:
-        fig = px.line(res, x='date', y='revenue', 
-                     title=f"{agg_level} Revenue Trend (Animated)",
-                     animation_frame=res.index,
-                     range_y=[0, res['revenue'].max() * 1.1])
-        fig.update_traces(mode='lines+markers')
-        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 100
+        # Create animated scatter plot that builds over time
+        res['date_str'] = res['date'].dt.strftime('%Y-%m-%d')
+        
+        fig = px.scatter(res, x='date', y='revenue', 
+                        title=f"{agg_level} Revenue Trend (Animated)",
+                        animation_frame=res.index)
+        
+        # Add line trace
+        fig.update_traces(mode='lines+markers', marker=dict(size=8))
+        
+        # Set animation settings
+        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 300
+        fig.layout.updatemenus[0].buttons[0].args[1]['transition']['duration'] = 100
+        
+        # Fix axes range
+        fig.update_xaxes(range=[res['date'].min(), res['date'].max()])
+        fig.update_yaxes(range=[0, res['revenue'].max() * 1.1])
+        
+        st.plotly_chart(fig, use_container_width=True)
+        st.info("💡 **Animation**: Click ▶️ Play to watch revenue growth over time period by period.")
     else:
-        fig = px.line(res, x='date', y='revenue', title=f"{agg_level} Revenue Trend")
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    if animate:
-        st.info("💡 **Animation**: Watch revenue growth over time. Use play/pause controls below the chart.")
+        fig = px.line(res, x='date', y='revenue', title=f"{agg_level} Revenue Trend",
+                     markers=True)
+        st.plotly_chart(fig, use_container_width=True)
 
 def cumulative_conversions():
     """Stacked area chart showing cumulative conversions by channel."""
@@ -777,7 +802,7 @@ def choropleth_map():
     export_data(df, f"geographic_{metric}.csv")
 
 def bubble_map():
-    """Bubble map showing store performance by location with animation."""
+    """Bubble map showing store performance by location - INDIA ONLY."""
     st.subheader("Store Performance (Bubble Map)")
     df = df_or_warn('geo')
     if df.empty:
@@ -799,20 +824,47 @@ def bubble_map():
         fig = px.scatter_geo(
             df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
             hover_name='state',
-            projection="natural earth",
             title="Store Performance by Location (Animated)",
-            animation_frame='state'
+            animation_frame='state',
+            color_continuous_scale='Blues'
         )
-        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 500
+        fig.layout.updatemenus[0].buttons[0].args[1]['frame']['duration'] = 800
     else:
         fig = px.scatter_geo(
             df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
             hover_name='state' if 'state' in df.columns else None,
-            projection="natural earth",
-            title="Store Performance by Location"
+            title="Store Performance by Location - India",
+            color_continuous_scale='Blues'
         )
     
-    fig.update_layout(height=600)
+    # FIXED: Zoom to India only with proper bounds
+    fig.update_geos(
+        visible=True,
+        resolution=50,
+        showcountries=True,
+        countrycolor="RebeccaPurple",
+        showcoastlines=True,
+        coastlinecolor="RebeccaPurple",
+        projection_type="mercator",
+        lataxis_range=[6, 37],      # India latitude range
+        lonaxis_range=[68, 98],     # India longitude range
+        center=dict(lat=22.5, lon=82.5),  # Center of India
+        bgcolor=PLOT_BG
+    )
+    
+    fig.update_layout(
+        height=650,
+        geo=dict(
+            scope='asia',
+            showland=True,
+            landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
+            showcountries=True,
+            countrycolor='white',
+            showlakes=True,
+            lakecolor='lightblue'
+        )
+    )
+    
     st.plotly_chart(fig, use_container_width=True)
     st.info("💡 **Insight**: Large clusters in metro areas. Kerala shows high satisfaction.")
 
