@@ -516,17 +516,101 @@ def sankey_journey():
     if df.empty:
         return
     
-    # Check for various possible column names
+    # Check if data is in sequence format (touchpoint_1, touchpoint_2, etc.)
+    touchpoint_cols = [c for c in df.columns if 'touchpoint' in c.lower()]
+    count_col = next((c for c in ['customer_count', 'count', 'value', 'customers'] if c in df.columns), None)
+    
+    if touchpoint_cols and count_col:
+        # Transform sequential touchpoint data into source-target pairs
+        st.info(f"📊 Detected sequential journey format with {len(touchpoint_cols)} touchpoints")
+        
+        try:
+            # Create source-target pairs from sequential touchpoints
+            links = []
+            for _, row in df.iterrows():
+                count = row[count_col]
+                touchpoints = [row[col] for col in sorted(touchpoint_cols) if pd.notna(row[col]) and row[col] != '']
+                
+                # Create links between consecutive touchpoints
+                for i in range(len(touchpoints) - 1):
+                    links.append({
+                        'source': touchpoints[i],
+                        'target': touchpoints[i + 1],
+                        'value': count
+                    })
+            
+            if not links:
+                st.warning("No valid journey paths found in the data.")
+                return
+            
+            # Aggregate duplicate links
+            links_df = pd.DataFrame(links)
+            links_agg = links_df.groupby(['source', 'target'])['value'].sum().reset_index()
+            
+            # Create node labels
+            all_nodes = list(set(links_agg['source'].tolist() + links_agg['target'].tolist()))
+            node_dict = {node: idx for idx, node in enumerate(all_nodes)}
+            
+            # Create Sankey diagram
+            fig = go.Figure(data=[go.Sankey(
+                node=dict(
+                    pad=15,
+                    thickness=20,
+                    line=dict(color="white", width=0.5),
+                    label=all_nodes,
+                    color=[PALETTE[i % len(PALETTE)] for i in range(len(all_nodes))]
+                ),
+                link=dict(
+                    source=[node_dict[src] for src in links_agg['source']],
+                    target=[node_dict[tgt] for tgt in links_agg['target']],
+                    value=links_agg['value'].tolist(),
+                    color='rgba(43, 140, 196, 0.3)'
+                )
+            )])
+            
+            fig.update_layout(
+                title="Customer Journey Paths - Multi-Touchpoint Flow",
+                font_size=10,
+                height=600
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.info("💡 **Insight**: Shows customer paths across multiple touchpoints. Thicker flows indicate more customers taking that path.")
+            
+            # Show summary stats
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Total Journeys", f"{df[count_col].sum():,}")
+            col2.metric("Unique Touchpoints", len(all_nodes))
+            col3.metric("Average Path Length", f"{df[touchpoint_cols].notna().sum(axis=1).mean():.1f}")
+            
+            return
+            
+        except Exception as e:
+            st.error(f"Error processing sequential journey data: {str(e)}")
+            st.write("Sample of data:")
+            st.dataframe(df.head())
+            return
+    
+    # Fallback: Check for traditional source-target format
     source_col = next((c for c in ['source', 'from', 'start'] if c in df.columns), None)
     target_col = next((c for c in ['target', 'to', 'end'] if c in df.columns), None)
     value_col = next((c for c in ['value', 'count', 'flow'] if c in df.columns), None)
     
     if not all([source_col, target_col, value_col]):
-        st.warning(f"⚠️ customer_journey.csv needs columns: source/target/value. Found columns: {', '.join(df.columns.tolist())}")
-        st.info("💡 Expected format: Each row represents a flow from 'source' touchpoint to 'target' touchpoint with a 'value' (count).")
+        st.warning(f"⚠️ customer_journey.csv format not recognized.")
+        st.info("""
+        **Expected format (Option 1 - Sequential):**
+        - touchpoint_1, touchpoint_2, touchpoint_3, touchpoint_4, customer_count
+        
+        **Expected format (Option 2 - Source-Target):**
+        - source, target, value
+        
+        **Found columns:** {', '.join(df.columns.tolist())}
+        """)
+        st.write("Sample of your data:")
+        st.dataframe(df.head())
         return
     
-    # Create node labels
+    # Process traditional source-target format
     try:
         all_nodes = list(set(df[source_col].tolist() + df[target_col].tolist()))
         node_dict = {node: idx for idx, node in enumerate(all_nodes)}
