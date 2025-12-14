@@ -140,6 +140,28 @@ def load_all():
 data = load_all()
 
 # ---------------------------
+# FIX CUSTOMER DATA FOR LTV & SEGMENT
+# ---------------------------
+if 'customer' in data and not data['customer'].empty:
+    cust = data['customer']
+
+    # Normalize column names to lowercase
+    cust.columns = cust.columns.str.lower()
+
+    # Create 'segment' alias if missing
+    if 'segment' not in cust.columns and 'customer_segment' in cust.columns:
+        cust['segment'] = cust['customer_segment']
+
+    # Compute LTV safely if missing
+    if 'ltv' not in cust.columns:
+        if {'avg_order_value', 'churn_probability'}.issubset(cust.columns):
+            cust['churn_probability'] = cust['churn_probability'].replace(0, 0.001)
+            cust['ltv'] = cust['avg_order_value'] / cust['churn_probability']
+
+    data['customer'] = cust
+
+
+# ---------------------------
 # Helpers
 # ---------------------------
 def df_or_warn(key):
@@ -259,8 +281,15 @@ def ltv_by_segment():
         st.warning("customer_data.csv must include 'ltv' and 'segment'.")
         return
     show_points = st.checkbox("Show individual points", key="ltv_points")
-    fig = px.box(df, x='segment', y='ltv', points='all' if show_points else 'outliers', title='LTV by Segment')
+    fig = px.box(
+        df,
+        x='segment',
+        y='ltv',
+        points='all' if show_points else 'outliers',
+        title='LTV by Segment'
+    )
     st.plotly_chart(fig, use_container_width=True)
+
 
 # Violin plot - satisfaction
 def satisfaction_violin():
@@ -284,19 +313,16 @@ def income_vs_ltv():
         st.warning("customer_data.csv must include 'income' and 'ltv'.")
         return
     show_trend = st.checkbox("Show trend line", key="income_trend")
-    fig = px.scatter(df, x='income', y='ltv', color='segment' if 'segment' in df.columns else None, hover_data=['customer_id'] if 'customer_id' in df.columns else None, title="Income vs LTV")
-    if show_trend:
-        sub = df.dropna(subset=['income','ltv'])
-        if len(sub) > 1:
-            lr = LinearRegression()
-            try:
-                lr.fit(sub[['income']], sub['ltv'])
-                xs = np.linspace(sub['income'].min(), sub['income'].max(), 100)
-                ys = lr.predict(xs.reshape(-1,1))
-                fig.add_scatter(x=xs, y=ys, mode='lines', name='Trendline', line=dict(color=PRIMARY))
-            except Exception:
-                pass
+    fig = px.scatter(
+        df,
+        x='income',
+        y='ltv',
+        color='segment' if 'segment' in df.columns else None,
+        title="Income vs LTV",
+        hover_data=['customer_id'] if 'customer_id' in df.columns else None
+    )
     st.plotly_chart(fig, use_container_width=True)
+
 
 # Bubble chart - CTR vs Conversion Rate
 def channel_bubble():
