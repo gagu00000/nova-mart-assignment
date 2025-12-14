@@ -94,30 +94,43 @@ div[data-testid="stMetricValue"] {{
 }}
 /* --- UPDATED METRIC STYLING END --- */
 
-/* --- DOWNLOAD BUTTON COLOR FIX for Light Mode (Request 1) --- */
-/* Target the button used by st.download_button in the main section */
-:not(section[data-testid="stSidebar"]) .stDownloadButton button * {{
-    /* TEXT_COLOR is #000000 in Light Mode, which fulfills the request */
-    color: {TEXT_COLOR} !important;
-}}
-
-/* --- THEME TOGGLE LAYOUT FIX (Request 2) --- */
+/* --- THEME TOGGLE LAYOUT/COLOR FIX (Request 3 & 4: Grey Color) --- */
 /* Center the toggle switch vertically and horizontally in its column */
 [data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle {{
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100%; /* Ensure toggle takes full column height for alignment */
-    padding-top: 10px; /* Adjust as needed */
+    height: 100%;
+    padding: 5px 0; /* Adjusted vertical padding */
 }}
 /* Style for the Light/Dark text labels */
 [data-testid="stSidebar"] .theme-label {{
     font-weight: 600;
     font-size: 14px;
-    margin-top: 5px; /* Adjust vertical alignment */
+    margin-top: 5px; 
     white-space: nowrap;
-    color: {sidebar_text} !important; /* Ensure high contrast */
+    color: {sidebar_text} !important; /* High contrast text */
 }}
+
+/* Target the switch component itself for color fix */
+/* The thumb (the circle) */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button::after {{
+    background: #FFFFFF !important; /* White thumb for max contrast */
+    border: 1px solid #333333 !important; /* Dark border for neutral look */
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.5) !important;
+}}
+/* The track (when OFF/Light Mode - Neutral Grey) */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button {{
+    background: #A9A9A9 !important; /* Dark Gray for light mode contrast (Neutral) */
+    border: 1px solid #A9A9A9 !important;
+}}
+/* The track (when ON/Dark Mode - Neutral Grey) */
+[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] .stToggle button:checked {{
+    background: #708090 !important; /* Slate Gray (Darker Grey) for dark mode contrast (Neutral) */
+    border: 1px solid #708090 !important;
+}}
+/* --- THEME TOGGLE LAYOUT/COLOR FIX END --- */
+
 
 .stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
   color: {TEXT_COLOR} !important;
@@ -134,7 +147,7 @@ h1, h2, h3, h4, h5, p, span, label {{
   color: {TEXT_COLOR} !important;
   border: 1px solid {ACCENT} !important;
 }}
-/* Theme toggle button styling (This is now obsolete but kept just in case) */
+/* Theme toggle button styling (Kept for completeness but obsolete) */
 .theme-toggle {{
   background: {ACCENT};
   color: white;
@@ -1088,16 +1101,18 @@ def feature_importance_plot():
 st.sidebar.title("🛒 NovaMart Dashboard")
 st.sidebar.markdown("---")
 
-# Theme Toggle Switch (NEW Layout: Light | Switch | Dark - Request 2)
+# Theme Toggle Switch (UPDATED Layout: Light | Switch | Dark)
 # Use columns for a neat horizontal layout. [1, 1.5, 1] balances the space.
 col_light, col_switch, col_dark = st.sidebar.columns([1, 1.5, 1])
 
 with col_light:
     # Use the custom CSS class 'theme-label' defined above
+    # Light should be on the left side of the switch
     st.markdown("<p class='theme-label' style='text-align: right;'>☀️ Light</p>", unsafe_allow_html=True)
 
 with col_switch:
     # Use st.toggle without a label to make it smaller and centered
+    # The value should be set to True when in Dark mode
     is_dark_new = st.toggle(
         label="",
         value=is_dark,
@@ -1105,6 +1120,7 @@ with col_switch:
     )
 
 with col_dark:
+    # Dark should be on the right side of the switch
     st.markdown("<p class='theme-label' style='text-align: left;'>🌙 Dark</p>", unsafe_allow_html=True)
 
 # Logic to handle the toggle change
