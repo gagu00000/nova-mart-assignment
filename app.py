@@ -18,7 +18,7 @@ from datetime import datetime
 APP_BG_DARK = "#0E1117"
 APP_BG_LIGHT = "#FFFFFF"
 TEXT_DARK = "#FFFFFF"
-TEXT_LIGHT = "#000000"
+TEXT_LIGHT = "#1F1F1F"
 SIDEBAR_BLUE = "#1F4E79"
 PRIMARY = "#0B3D91"
 ACCENT = "#2B8CC4"
@@ -72,28 +72,15 @@ section[data-testid="stSidebar"] * {{
 section[data-testid="stSidebar"] .stRadio label {{
   color: {sidebar_text} !important;
 }}
-
-/* --- UPDATED METRIC STYLING START --- */
 div[data-testid="metric-container"] {{
-  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(240, 242, 246, 0.5)'} !important;
+  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(11, 61, 145, 0.08)'} !important;
   padding: 10px !important;
   border-radius: 8px;
-  border: {'none' if is_dark else '1px solid #d0d0d0'};
+  border: {'none' if is_dark else '2px solid #0B3D91'};
 }}
-
-/* Force Label Color */
-div[data-testid="metric-container"] label, 
-div[data-testid="stMetricLabel"] {{
+div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
   color: {TEXT_COLOR} !important;
 }}
-
-/* Force Value Color (The numbers) */
-div[data-testid="metric-container"] div[data-testid="stMetricValue"] > div,
-div[data-testid="stMetricValue"] {{
-  color: {TEXT_COLOR} !important;
-}}
-/* --- UPDATED METRIC STYLING END --- */
-
 .stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
   color: {TEXT_COLOR} !important;
 }}
@@ -121,6 +108,7 @@ h1, h2, h3, h4, h5, p, span, label {{
 }}
 </style>
 """, unsafe_allow_html=True)
+
 # ---------------------------
 # DATA LOADING
 # ---------------------------
@@ -820,7 +808,6 @@ def bubble_map():
     if df.empty:
         return
     
-    # Handle column names
     lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
     lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
     
@@ -833,7 +820,6 @@ def bubble_map():
     
     animate = st.checkbox("🎬 Animate by State", value=False, key="bubble_animate")
     
-    # Generate the Base Plot
     if animate and 'state' in df.columns:
         fig = px.scatter_geo(
             df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
@@ -851,27 +837,37 @@ def bubble_map():
             color_continuous_scale='Blues'
         )
     
-    # --- STYLE UPDATE START ---
-    # This block now matches the choropleth_map style exactly
+    # FIXED: Zoom to India only with proper bounds
     fig.update_geos(
         visible=True,
         resolution=50,
         showcountries=True,
-        countrycolor="white",       # Changed from RebeccaPurple to White
+        countrycolor="RebeccaPurple",
         showcoastlines=True,
-        coastlinecolor="white",     # Changed from RebeccaPurple to White
+        coastlinecolor="RebeccaPurple",
         projection_type="mercator",
-        center=dict(lat=20.5937, lon=78.9629),  # Exact India center
-        lataxis_range=[8, 35],
-        lonaxis_range=[68, 97]
-        # Removed specific land/lake colors to match the transparent style of the choropleth
+        lataxis_range=[6, 37],      # India latitude range
+        lonaxis_range=[68, 98],     # India longitude range
+        center=dict(lat=22.5, lon=82.5),  # Center of India
+        bgcolor=PLOT_BG
     )
-    # --- STYLE UPDATE END ---
     
-    fig.update_layout(height=650)
+    fig.update_layout(
+        height=650,
+        geo=dict(
+            scope='asia',
+            showland=True,
+            landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
+            showcountries=True,
+            countrycolor='white',
+            showlakes=True,
+            lakecolor='lightblue'
+        )
+    )
     
     st.plotly_chart(fig, use_container_width=True)
     st.info("💡 **Insight**: Large clusters in metro areas. Kerala shows high satisfaction.")
+
 def confusion_matrix_viz():
     """Confusion matrix with threshold slider."""
     st.subheader("Confusion Matrix - Lead Scoring Model")
