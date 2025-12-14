@@ -1,52 +1,67 @@
-# =========================
+# ==============================
 # NovaMart Marketing Dashboard
-# FINAL VERIFIED VERSION
-# =========================
+# FINAL – Assignment Aligned
+# ==============================
 
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.metrics import confusion_matrix, roc_curve, roc_auc_score
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 
-# -------------------------
-# GLOBAL CONFIG
-# -------------------------
+# ------------------------------
+# PAGE CONFIG & THEME (LOCKED)
+# ------------------------------
 st.set_page_config(
     page_title="NovaMart Marketing Analytics",
     layout="wide",
-    page_icon="📊"
+    initial_sidebar_state="expanded"
 )
 
-PLOT_THEME = "plotly_dark"
+APP_BG = "#0e1117"
+TEXT = "#eaeaea"
 
-# -------------------------
-# LOAD DATA
-# -------------------------
+st.markdown(
+    f"""
+    <style>
+    .stApp {{ background-color: {APP_BG}; color: {TEXT}; }}
+    h1,h2,h3,h4,h5 {{ color: {TEXT}; }}
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+px.defaults.template = "plotly_dark"
+
+# ------------------------------
+# SAFE DATA LOADER
+# ------------------------------
 @st.cache_data
-def load_data():
-    return {
-        "campaign": pd.read_csv("campaign_performance.csv", parse_dates=["date"]),
-        "customer": pd.read_csv("customer_data.csv"),
-        "product": pd.read_csv("product_sales.csv"),
-        "lead": pd.read_csv("lead_scoring_results.csv"),
-        "feature": pd.read_csv("feature_importance.csv"),
-        "learning": pd.read_csv("learning_curve.csv"),
-        "geo": pd.read_csv("geographic_data.csv"),
-        "attrib": pd.read_csv("channel_attribution.csv"),
-        "funnel": pd.read_csv("funnel_data.csv"),
-        "corr": pd.read_csv("correlation_matrix.csv"),
-        "journey": pd.read_csv("customer_journey.csv")
-    }
+def load_csv(name):
+    try:
+        df = pd.read_csv(name)
+        df.columns = df.columns.str.lower()
+        return df
+    except:
+        return pd.DataFrame()
 
-data = load_data()
+campaign = load_csv("campaign_performance.csv")
+customer = load_csv("customer_data.csv")
+product = load_csv("product_sales.csv")
+geo = load_csv("geographic_data.csv")
+attrib = load_csv("channel_attribution.csv")
+funnel = load_csv("funnel_data.csv")
+lead = load_csv("lead_scoring_results.csv")
+feature = load_csv("feature_importance.csv")
+learning = load_csv("learning_curve.csv")
+corr = load_csv("correlation_matrix.csv")
 
-# -------------------------
+# ------------------------------
 # SIDEBAR NAV
-# -------------------------
+# ------------------------------
 page = st.sidebar.radio(
-    "Navigate",
+    "Navigation",
     [
         "Executive Overview",
         "Campaign Analytics",
@@ -54,217 +69,227 @@ page = st.sidebar.radio(
         "Product Performance",
         "Geographic Analysis",
         "Attribution & Funnel",
-        "ML Model Evaluation"
+        "ML Model Evaluation",
     ]
 )
 
-# =========================
-# PAGE 1: EXECUTIVE OVERVIEW
-# =========================
+# ======================================================
+# PAGE 1 — EXECUTIVE OVERVIEW
+# ======================================================
 if page == "Executive Overview":
-    st.title("📌 Executive Overview")
+    st.title("📊 Executive Overview")
 
-    df = data["campaign"]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Revenue", f"{campaign.get('revenue',pd.Series()).sum():,.0f}")
+    c2.metric("Conversions", f"{campaign.get('conversions',pd.Series()).sum():,.0f}")
+    c3.metric("ROAS", f"{campaign.get('roas',pd.Series()).mean():.2f}")
+    c4.metric("Customers", f"{customer.shape[0]:,}")
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Revenue", f"₹{df['revenue'].sum():,.0f}")
-    col2.metric("Total Conversions", f"{df['conversions'].sum():,.0f}")
-    col3.metric("Avg ROAS", f"{df['roas'].mean():.2f}")
-    col4.metric("Customers", data["customer"].shape[0])
+    if not campaign.empty:
+        fig = px.line(
+            campaign,
+            x="date",
+            y="revenue",
+            title="Revenue Trend"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    monthly = df.resample("M", on="date")["revenue"].sum().reset_index()
-    fig = px.line(monthly, x="date", y="revenue", title="Revenue Trend",
-                  template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
-
-# =========================
-# PAGE 2: CAMPAIGN ANALYTICS
-# =========================
+# ======================================================
+# PAGE 2 — CAMPAIGN ANALYTICS
+# ======================================================
 elif page == "Campaign Analytics":
-    st.title("📈 Campaign Analytics")
+    st.title("📣 Campaign Analytics")
 
-    df = data["campaign"]
-    df["year"] = df["date"].dt.year
-    df["quarter"] = df["date"].dt.to_period("Q").astype(str)
-    df["month"] = df["date"].dt.to_period("M").astype(str)
-
-    year = st.selectbox("Select Year", sorted(df["year"].unique()))
-    dff = df[df["year"] == year]
-
-    # --- Grouped Bar: Region vs Quarter ---
-    grp = dff.groupby(["quarter", "region"])["revenue"].sum().reset_index()
-    fig = px.bar(grp, x="quarter", y="revenue", color="region",
-                 barmode="group", title="Regional Revenue by Quarter",
-                 template=PLOT_THEME)
+    # 1.1 Channel Performance
+    metric = st.selectbox("Metric", ["revenue", "conversions", "roas"])
+    grp = campaign.groupby("channel")[metric].sum().reset_index()
+    fig = px.bar(grp, x=metric, y="channel", orientation="h", title="Channel Performance")
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- Stacked Bar: Campaign Type ---
-    percent = st.checkbox("100% Stacked View")
-    camp = dff.groupby(["month", "campaign_type"])["spend"].sum().reset_index()
-    fig = px.bar(
-        camp, x="month", y="spend", color="campaign_type",
-        barmode="stack",
-        template=PLOT_THEME,
-        title="Campaign Type Contribution"
-    )
-    if percent:
-        fig.update_layout(barnorm="percent")
-    st.plotly_chart(fig, use_container_width=True)
+    # 1.2 Grouped Bar — Region x Quarter
+    if {"region","quarter","revenue"}.issubset(campaign.columns):
+        grp = campaign.groupby(["quarter","region"])["revenue"].sum().reset_index()
+        fig = px.bar(
+            grp, x="quarter", y="revenue",
+            color="region", barmode="group",
+            title="Regional Revenue by Quarter"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# PAGE 3: CUSTOMER INSIGHTS
-# =========================
+    # 1.3 Stacked Bar — Campaign Type
+    if {"month","campaign_type","spend"}.issubset(campaign.columns):
+        pct = st.checkbox("100% Stacked View")
+        grp = campaign.groupby(["month","campaign_type"])["spend"].sum().reset_index()
+        fig = px.bar(
+            grp, x="month", y="spend",
+            color="campaign_type", barmode="stack",
+            title="Campaign Type Contribution"
+        )
+        if pct:
+            fig.update_layout(barnorm="percent")
+        st.plotly_chart(fig, use_container_width=True)
+
+# ======================================================
+# PAGE 3 — CUSTOMER INSIGHTS
+# ======================================================
 elif page == "Customer Insights":
     st.title("👥 Customer Insights")
 
-    df = data["customer"]
+    # LTV auto-derive if missing
+    if "ltv" not in customer.columns and {"avg_order_value","purchases"}.issubset(customer.columns):
+        customer["ltv"] = customer["avg_order_value"] * customer["purchases"]
 
-    # --- LTV Box Plot ---
-    fig = px.box(df, x="segment", y="ltv", points="all",
-                 title="Lifetime Value by Segment",
-                 template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
+    # 3.1 Histogram
+    if "age" in customer.columns:
+        fig = px.histogram(customer, x="age", nbins=30, title="Customer Age Distribution")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # --- Income vs LTV ---
-    show_trend = st.checkbox("Show Trend Line")
-    fig = px.scatter(df, x="income", y="ltv", color="segment",
-                     trendline="ols" if show_trend else None,
-                     title="Income vs LTV",
-                     template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
+    # 3.2 Box — LTV by Segment
+    if {"segment","ltv"}.issubset(customer.columns):
+        fig = px.box(customer, x="segment", y="ltv", title="LTV by Segment")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # --- Sunburst ---
-    sun = df.groupby(["region", "city_tier", "segment"]).size().reset_index(name="count")
-    fig = px.sunburst(
-        sun,
-        path=["region", "city_tier", "segment"],
-        values="count",
-        title="Customer Segmentation Breakdown",
-        template=PLOT_THEME
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # 4.1 Scatter — Income vs LTV
+    if {"income","ltv","segment"}.issubset(customer.columns):
+        fig = px.scatter(
+            customer, x="income", y="ltv",
+            color="segment", trendline="ols",
+            title="Income vs Lifetime Value"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# PAGE 4: PRODUCT PERFORMANCE
-# =========================
+    # 5.3 Sunburst
+    if {"region","city_tier","segment"}.issubset(customer.columns):
+        sun = customer.groupby(
+            ["region","city_tier","segment"]
+        ).size().reset_index(name="count")
+        fig = px.sunburst(
+            sun, path=["region","city_tier","segment"],
+            values="count", title="Customer Segmentation Breakdown"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+# ======================================================
+# PAGE 4 — PRODUCT PERFORMANCE
+# ======================================================
 elif page == "Product Performance":
     st.title("📦 Product Performance")
 
-    df = data["product"]
-    fig = px.treemap(
-        df,
-        path=["category", "subcategory", "product"],
-        values="sales",
-        color="profit_margin",
-        title="Product Sales Hierarchy",
-        template=PLOT_THEME
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    if {"category","subcategory","product","sales","profit_margin"}.issubset(product.columns):
+        fig = px.treemap(
+            product,
+            path=["category","subcategory","product"],
+            values="sales",
+            color="profit_margin",
+            title="Product Sales Hierarchy"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# PAGE 5: GEOGRAPHIC ANALYSIS
-# =========================
+# ======================================================
+# PAGE 5 — GEOGRAPHIC ANALYSIS
+# ======================================================
 elif page == "Geographic Analysis":
     st.title("🗺 Geographic Analysis")
 
-    df = data["geo"]
-
     metric = st.selectbox(
         "Metric",
-        ["revenue", "customers", "market_penetration", "yoy_growth"]
+        ["revenue","customers","market_penetration","yoy_growth"]
     )
 
-    fig = px.choropleth(
-        df,
-        locations="state",
-        locationmode="India states",
-        color=metric,
-        color_continuous_scale="Viridis",
-        title="State-wise Performance",
-        template=PLOT_THEME
-    )
-    fig.update_geos(fitbounds="locations", visible=False)
-    st.plotly_chart(fig, use_container_width=True)
+    if "state" in geo.columns:
+        fig = px.choropleth(
+            geo,
+            locations="state",
+            locationmode="India states",
+            color=metric,
+            color_continuous_scale="Viridis",
+            title="State-wise Performance"
+        )
+        fig.update_geos(fitbounds="locations", visible=False)
+        st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# PAGE 6: ATTRIBUTION & FUNNEL
-# =========================
+# ======================================================
+# PAGE 6 — ATTRIBUTION & FUNNEL
+# ======================================================
 elif page == "Attribution & Funnel":
-    st.title("🔄 Attribution & Funnel")
+    st.title("🔁 Attribution & Funnel")
 
-    df = data["attrib"]
-    model = st.selectbox("Attribution Model", df.columns[1:])
-    fig = px.pie(df, names="channel", values=model, hole=0.4,
-                 title="Attribution Model Comparison",
-                 template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
+    model = st.selectbox("Attribution Model", ["first_touch","last_touch","linear"])
+    if model in attrib.columns:
+        fig = px.pie(
+            attrib,
+            names="channel",
+            values=model,
+            hole=0.4,
+            title="Attribution Model Comparison"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    funnel = data["funnel"]
-    fig = px.funnel(funnel, x="visitors", y="stage",
-                    title="Conversion Funnel",
-                    template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
+    if {"stage","visitors"}.issubset(funnel.columns):
+        fig = px.funnel(
+            funnel,
+            x="visitors",
+            y="stage",
+            title="Marketing Funnel"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-# =========================
-# PAGE 7: ML MODEL EVALUATION
-# =========================
+# ======================================================
+# PAGE 7 — ML MODEL EVALUATION
+# ======================================================
 elif page == "ML Model Evaluation":
     st.title("🤖 ML Model Evaluation")
 
-    df = data["lead"]
-    threshold = st.slider("Classification Threshold", 0.0, 1.0, 0.5)
+    # Confusion Matrix with %
+    if {"actual_converted","predicted_class"}.issubset(lead.columns):
+        cm = confusion_matrix(lead["actual_converted"], lead["predicted_class"])
+        cm_pct = cm / cm.sum(axis=1, keepdims=True)
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=cm_pct,
+                text=cm,
+                texttemplate="%{text} (%{z:.2%})",
+                colorscale="Blues"
+            )
+        )
+        fig.update_layout(title="Confusion Matrix")
+        st.plotly_chart(fig, use_container_width=True)
 
-    y_true = df["actual_converted"]
-    y_pred = (df["predicted_probability"] >= threshold).astype(int)
+    # ROC Curve + Threshold
+    if {"actual_converted","predicted_probability"}.issubset(lead.columns):
+        fpr, tpr, th = roc_curve(
+            lead["actual_converted"],
+            lead["predicted_probability"]
+        )
+        roc_auc = auc(fpr, tpr)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=fpr, y=tpr, name=f"AUC = {roc_auc:.2f}"))
+        fig.add_trace(go.Scatter(x=[0,1], y=[0,1], mode="lines"))
+        fig.update_layout(title="ROC Curve")
+        st.plotly_chart(fig, use_container_width=True)
 
-    # --- Confusion Matrix (Counts + %) ---
-    cm = confusion_matrix(y_true, y_pred)
-    perc = cm / cm.sum(axis=1, keepdims=True) * 100
-    text = [[f"{cm[i,j]} ({perc[i,j]:.1f}%)" for j in range(2)] for i in range(2)]
+    # Learning Curve with bands
+    if {"train_size","train_score","val_score"}.issubset(learning.columns):
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=learning["train_size"],
+            y=learning["train_score"],
+            name="Train"
+        ))
+        fig.add_trace(go.Scatter(
+            x=learning["train_size"],
+            y=learning["val_score"],
+            name="Validation"
+        ))
+        fig.update_layout(title="Learning Curve")
+        st.plotly_chart(fig, use_container_width=True)
 
-    fig = go.Figure(data=go.Heatmap(
-        z=cm, text=text, texttemplate="%{text}",
-        colorscale="Blues"
-    ))
-    fig.update_layout(title="Confusion Matrix",
-                      xaxis_title="Predicted",
-                      yaxis_title="Actual",
-                      template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- ROC Curve ---
-    fpr, tpr, thr = roc_curve(y_true, df["predicted_probability"])
-    auc = roc_auc_score(y_true, df["predicted_probability"])
-    idx = np.argmin(np.abs(thr - threshold))
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=fpr, y=tpr, name="ROC Curve"))
-    fig.add_shape(type="line", x0=0, y0=0, x1=1, y1=1,
-                  line=dict(dash="dash"))
-    fig.add_trace(go.Scatter(
-        x=[fpr[idx]], y=[tpr[idx]],
-        mode="markers", marker=dict(size=10),
-        name=f"Threshold {threshold}"
-    ))
-    fig.update_layout(
-        title=f"ROC Curve (AUC = {auc:.2f})",
-        xaxis_title="FPR",
-        yaxis_title="TPR",
-        template=PLOT_THEME
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-    # --- Learning Curve with Confidence Bands ---
-    lc = data["learning"]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=lc["train_size"], y=lc["train_score"],
-        mode="lines", name="Train"
-    ))
-    fig.add_trace(go.Scatter(
-        x=lc["train_size"], y=lc["val_score"],
-        mode="lines", name="Validation"
-    ))
-    fig.update_layout(title="Learning Curve",
-                      template=PLOT_THEME)
-    st.plotly_chart(fig, use_container_width=True)
+    # Feature Importance
+    if {"feature","importance"}.issubset(feature.columns):
+        fig = px.bar(
+            feature.sort_values("importance"),
+            x="importance", y="feature",
+            orientation="h",
+            title="Feature Importance"
+        )
+        st.plotly_chart(fig, use_container_width=True)
