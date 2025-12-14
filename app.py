@@ -1,6 +1,4 @@
-# app.py - NovaMart Marketing Analytics Dashboard (COMPLETE VERSION)
-# Place the 11 CSVs in the same folder as this file (root).
-# Requirements: streamlit, pandas, numpy, plotly, scikit-learn
+# NovaMart Marketing Analytics Dashboard (COMPLETE VERSION)
 
 import streamlit as st
 import pandas as pd
