@@ -94,6 +94,13 @@ div[data-testid="stMetricValue"] {{
 }}
 /* --- UPDATED METRIC STYLING END --- */
 
+/* --- DOWNLOAD BUTTON COLOR FIX FOR LIGHT MODE (Request 1) --- */
+/* Target the button used by st.download_button in the main section */
+:not(section[data-testid="stSidebar"]) .stDownloadButton button * {{
+    /* TEXT_COLOR is #000000 in Light Mode, which fulfills the request */
+    color: {TEXT_COLOR} !important;
+}}
+
 .stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
   color: {TEXT_COLOR} !important;
 }}
@@ -109,7 +116,7 @@ h1, h2, h3, h4, h5, p, span, label {{
   color: {TEXT_COLOR} !important;
   border: 1px solid {ACCENT} !important;
 }}
-/* Theme toggle button styling */
+/* Theme toggle button styling (This is now obsolete but kept just in case) */
 .theme-toggle {{
   background: {ACCENT};
   color: white;
@@ -1063,11 +1070,17 @@ def feature_importance_plot():
 st.sidebar.title("🛒 NovaMart Dashboard")
 st.sidebar.markdown("---")
 
-# Theme Toggle Button
-theme_icon = "🌙" if is_dark else "☀️"
-theme_label = "Light Mode" if is_dark else "Dark Mode"
-if st.sidebar.button(f"{theme_icon} Switch to {theme_label}", key="theme_toggle", use_container_width=True):
-    toggle_theme()
+# Theme Toggle Switch (Request 2)
+is_dark_new = st.sidebar.toggle(
+    label="🌙 Dark Mode | ☀️ Light Mode",
+    value=is_dark,
+    key="theme_toggle_switch",
+)
+
+# Logic to handle the toggle change
+if is_dark_new != is_dark:
+    # toggle_theme() flips the st.session_state.theme
+    toggle_theme() 
     st.rerun()
 
 st.sidebar.markdown("---")
