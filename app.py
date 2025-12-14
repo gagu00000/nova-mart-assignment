@@ -18,7 +18,7 @@ from datetime import datetime
 APP_BG_DARK = "#0E1117"
 APP_BG_LIGHT = "#FFFFFF"
 TEXT_DARK = "#FFFFFF"
-TEXT_LIGHT = "#1F1F1F"
+TEXT_LIGHT = "#000000"
 SIDEBAR_BLUE = "#1F4E79"
 PRIMARY = "#0B3D91"
 ACCENT = "#2B8CC4"
@@ -72,15 +72,28 @@ section[data-testid="stSidebar"] * {{
 section[data-testid="stSidebar"] .stRadio label {{
   color: {sidebar_text} !important;
 }}
+
+/* --- UPDATED METRIC STYLING START --- */
 div[data-testid="metric-container"] {{
-  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(11, 61, 145, 0.08)'} !important;
+  background: {'rgba(255,255,255,0.03)' if is_dark else 'rgba(240, 242, 246, 0.5)'} !important;
   padding: 10px !important;
   border-radius: 8px;
-  border: {'none' if is_dark else '2px solid #0B3D91'};
+  border: {'none' if is_dark else '1px solid #d0d0d0'};
 }}
-div[data-testid="metric-container"] .stMetricLabel, div[data-testid="metric-container"] .stMetricValue {{
+
+/* Force Label Color */
+div[data-testid="metric-container"] label, 
+div[data-testid="stMetricLabel"] {{
   color: {TEXT_COLOR} !important;
 }}
+
+/* Force Value Color (The numbers) */
+div[data-testid="metric-container"] div[data-testid="stMetricValue"] > div,
+div[data-testid="stMetricValue"] {{
+  color: {TEXT_COLOR} !important;
+}}
+/* --- UPDATED METRIC STYLING END --- */
+
 .stSelectbox, .stTextInput, .stNumberInput, .stDateInput, .stMultiSelect, .stSlider {{
   color: {TEXT_COLOR} !important;
 }}
@@ -108,7 +121,6 @@ h1, h2, h3, h4, h5, p, span, label {{
 }}
 </style>
 """, unsafe_allow_html=True)
-
 # ---------------------------
 # DATA LOADING
 # ---------------------------
