@@ -808,6 +808,7 @@ def bubble_map():
     if df.empty:
         return
     
+    # Handle column names
     lat_col = 'latitude' if 'latitude' in df.columns else ('lat' if 'lat' in df.columns else None)
     lon_col = 'longitude' if 'longitude' in df.columns else ('lon' if 'lon' in df.columns else None)
     
@@ -820,6 +821,7 @@ def bubble_map():
     
     animate = st.checkbox("🎬 Animate by State", value=False, key="bubble_animate")
     
+    # Generate the Base Plot
     if animate and 'state' in df.columns:
         fig = px.scatter_geo(
             df, lat=lat_col, lon=lon_col, size=size_col, color=color_col,
@@ -837,37 +839,27 @@ def bubble_map():
             color_continuous_scale='Blues'
         )
     
-    # FIXED: Zoom to India only with proper bounds
+    # --- STYLE UPDATE START ---
+    # This block now matches the choropleth_map style exactly
     fig.update_geos(
         visible=True,
         resolution=50,
         showcountries=True,
-        countrycolor="RebeccaPurple",
+        countrycolor="white",       # Changed from RebeccaPurple to White
         showcoastlines=True,
-        coastlinecolor="RebeccaPurple",
+        coastlinecolor="white",     # Changed from RebeccaPurple to White
         projection_type="mercator",
-        lataxis_range=[6, 37],      # India latitude range
-        lonaxis_range=[68, 98],     # India longitude range
-        center=dict(lat=22.5, lon=82.5),  # Center of India
-        bgcolor=PLOT_BG
+        center=dict(lat=20.5937, lon=78.9629),  # Exact India center
+        lataxis_range=[8, 35],
+        lonaxis_range=[68, 97]
+        # Removed specific land/lake colors to match the transparent style of the choropleth
     )
+    # --- STYLE UPDATE END ---
     
-    fig.update_layout(
-        height=650,
-        geo=dict(
-            scope='asia',
-            showland=True,
-            landcolor='rgb(243, 243, 243)' if not is_dark else 'rgb(30, 30, 30)',
-            showcountries=True,
-            countrycolor='white',
-            showlakes=True,
-            lakecolor='lightblue'
-        )
-    )
+    fig.update_layout(height=650)
     
     st.plotly_chart(fig, use_container_width=True)
     st.info("💡 **Insight**: Large clusters in metro areas. Kerala shows high satisfaction.")
-
 def confusion_matrix_viz():
     """Confusion matrix with threshold slider."""
     st.subheader("Confusion Matrix - Lead Scoring Model")
